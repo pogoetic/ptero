@@ -1,7 +1,12 @@
 
-import requests, boto3, sqlite3, json
+import requests, boto3, sqlite3, json, ConfigParser
 
 #Keys
+config = ConfigParser.RawConfigParser(allow_no_value=True)
+config.read('keys.cfg')
+qpxkey = config.get("API", "qpxkey")
+skyscannerkey = config.get("API", "skyscannerkey")
+seskey = config.get("API", "seskey")
 
 conn = sqlite3.connect('pterodb')
 dataresetflag = False
