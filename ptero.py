@@ -9,9 +9,9 @@ skyscannerkey = config.get("API", "skyscannerkey")
 seskey = config.get("API", "seskey")
 
 conn = sqlite3.connect('pterodb')
-dataresetflag = False
+data_resetflag = False
 
-def TableExists(tablename):
+def table_exists(tablename):
 	c = conn.cursor()
 	command = 'SELECT count(*) FROM sqlite_master WHERE type=\'table\' AND name=\'{}\';'.format(tablename)
 	c.execute(command)
@@ -21,23 +21,23 @@ def TableExists(tablename):
 	else:
 		return False
 
-def DataReset(reset=False):
+def data_reset(reset=False):
 	if reset == True:
 		c = conn.cursor()
-		if TableExists('apilimit') == True:
+		if table_exists('apilimit') == True:
 			print 'Dropping Table apilimit'
 			c.execute('Drop Table apilimit')
-		if TableExists('apihistory') == True:
+		if table_exists('apihistory') == True:
 			print 'Dropping Table apihistory'
 			c.execute('Drop Table apihistory') 
-		if TableExists('qbxresponse') == True:
+		if table_exists('qbxresponse') == True:
 			print 'Dropping Table qbxresponse'
 			c.execute('Drop Table qbxresponse') 
 		c.execute('VACUUM;')
 		conn.commit()
 		print 'Data Reset Success'
 
-def UpdateAPIHistory(apiID,numcalls,reset=False):
+def update_api_history(apiID,numcalls,reset=False):
 	c = conn.cursor()	
 	if reset == True:
 		c.execute('Delete from apihistory;')
@@ -62,7 +62,7 @@ def UpdateAPIHistory(apiID,numcalls,reset=False):
 		conn.commit()
 		return True
 
-def APILimitReached(apiID):
+def api_limit_reached(apiID):
 	c = conn.cursor()
 	c.execute('Select numcalls from apihistory where apiID={} and date = date(\'now\',\'localtime\')'.format(apiID))
 	numcalls = c.fetchone()
@@ -73,7 +73,7 @@ def APILimitReached(apiID):
 	else: 
 		return False
 
-def UpdateQBXResponse(rawresponse):
+def update_qbx_response(rawresponse):
 	c = conn.cursor()	
 	#command = "Insert Into qbxresponse(rawresponse) values(\'{}\');".format(rawresponse)
 	c.execute("Insert Into qbxresponse(rawresponse) values(?)",(rawresponse,))
@@ -85,17 +85,17 @@ def UpdateQBXResponse(rawresponse):
 
 ############################################################################
 #DB Setup
-DataReset(reset=dataresetflag)
+data_reset(reset=data_resetflag)
 
 c = conn.cursor()
-if TableExists('apilimit') == False:
+if table_exists('apilimit') == False:
 	#c.execute('Drop Table apilimit')
 	c.execute('Create Table IF NOT EXISTS apilimit(apiID int,apicode varchar(20),apiname varchar(100),dailylimit int)')
 	command = 'Insert Into apilimit(apiID, apicode, apiname, dailylimit) Values({},\'{}\',\'{}\',{})'.format('1','QPX','Google QPX Express API','50')
 	c.execute(command)
 	conn.commit()
 
-if TableExists('apihistory') == False:
+if table_exists('apihistory') == False:
 	#c.execute('Drop Table apihistory') 
 	c.execute('Create Table IF NOT EXISTS apihistory(apiID int, date date, numcalls int)')
 	c.execute('CREATE UNIQUE INDEX {ix} on {tn}({cn},{cn2})'.format(ix='idx1', tn='apihistory', cn='apiID', cn2='date'))
@@ -104,7 +104,7 @@ if TableExists('apihistory') == False:
 #c.execute('Drop Table qbxresponse') 
 #conn.commit()
 
-if TableExists('qbxresponse') == False:
+if table_exists('qbxresponse') == False:
 	#c.execute('Drop Table apihistory') 
 	c.execute('Create Table IF NOT EXISTS qbxresponse(queryid INTEGER PRIMARY KEY, rawresponse BLOB, created datetime DEFAULT CURRENT_TIMESTAMP)')
 	conn.commit()
@@ -114,14 +114,14 @@ if TableExists('qbxresponse') == False:
 
 #QPX Requests 
 def QPXSearch(jsonquery,apikey=qpxkey):
-	if APILimitReached(apiID=1) == False:
+	if api_limit_reached(apiID=1) == False:
 		headers = {'content-type': 'application/json'}
 		url = 'https://www.googleapis.com/qpxExpress/v1/trips/search?key={}'.format(apikey)
 		r = requests.post(url, headers=headers, data=jsonquery)
 		if r.status_code == 200:
 			print str(r.status_code) +' - Success!'
-			UpdateAPIHistory(apiID=1,numcalls=1)
-			UpdateQBXResponse(r.text)
+			update_api_history(apiID=1,numcalls=1)
+			update_qbx_response(r.text)
 			return r.json()
 		else: 
 			print str(r.status_code) + ' - Failure!'
@@ -214,7 +214,26 @@ print rows
 c.execute('Select rawresponse from qbxresponse where substr(created,0,11) = date(\'now\',\'localtime\')')
 row = c.fetchone()
 r = json.loads(row[0])
-print r['kind']
+print 'requestId: ' + r['trips']['requestId']
+print 'price: ' + r['trips']['tripOption'][0]['saleTotal']
+
+print 'tripOptionId: ' + r['trips']['tripOption'][0]['id']
+print 'total flight duration: ' + str(r['trips']['tripOption'][0]['slice'][0]['duration'])
+
+print 'segmentId: ' + r['trips']['tripOption'][0]['slice'][0]['segment'][0]['id']
+print 'flight segment duration: ' + str(r['trips']['tripOption'][0]['slice'][0]['segment'][0]['duration'])
+print 'segment carrier: ' + str(r['trips']['tripOption'][0]['slice'][0]['segment'][0]['flight']['carrier'])
+print 'segment flight number: ' + str(r['trips']['tripOption'][0]['slice'][0]['segment'][0]['flight']['number'])
+print 'cabin: ' + r['trips']['tripOption'][0]['slice'][0]['segment'][0]['cabin']
+print 'bookingCode: ' + r['trips']['tripOption'][0]['slice'][0]['segment'][0]['bookingCode']
+print 'bookingCodeCount: ' + str(r['trips']['tripOption'][0]['slice'][0]['segment'][0]['bookingCodeCount'])
+print 'marriedSegmentGroup: ' + r['trips']['tripOption'][0]['slice'][0]['segment'][0]['marriedSegmentGroup']
+
+print 'legId: ' + r['trips']['tripOption'][0]['slice'][0]['segment'][0]['leg'][0]['id']
+print 'aircraft: ' + r['trips']['tripOption'][0]['slice'][0]['segment'][0]['leg'][0]['aircraft']
+print 'arrivaltime: ' + r['trips']['tripOption'][0]['slice'][0]['segment'][0]['leg'][0]['aircraft']
+print 'departuretime: ' + r['trips']['tripOption'][0]['slice'][0]['segment'][0]['leg'][0]['aircraft']
+
 
 '''
 #Parsing JSON from Response directly
