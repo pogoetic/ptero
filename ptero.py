@@ -134,15 +134,17 @@ jsonbody = {
   "request": {
     "passengers": {
       "adultCount": "2",
-      "childCount": "0",
-      "infantInLapCount": "0",
-      "infantInSeatCount": "0",
-      "seniorCount": "0"
+      "childCount": "1",
+      "infantInLapCount": "1",
+      "infantInSeatCount": "1",
+      "seniorCount": "1"
     },
+    "saleCountry": "US",
+    "solutions": 2,
     "slice": [
       {
         "origin": "PHL",
-        "destination": "SFO",
+        "destination": "LAX",
         "date": "2017-03-01",
         #"maxStops": integer,
         #"maxConnectionDuration": integer,
@@ -156,18 +158,20 @@ jsonbody = {
         #],
         #"alliance": string, #ONEWORLD, SKYTEAM, and STAR. Do not use this field with permittedCarrier 
         "prohibitedCarrier": [
-          "KC"
-        ]
+          "KC","NK"
+        ],
+        "preferredCabin": "COACH"
       }
     ],
     #"maxPrice": string,
-    "saleCountry": "US",
+    "saleCountry": "US"
     #"ticketingCountry": string,
     #"refundable": boolean,
-    "solutions": "1"
+    #"solutions": "1"
   }
 }
 
+'''
 jsonbody = {
  "request": {
   "passengers": {
@@ -188,8 +192,9 @@ jsonbody = {
   ]
  }
 }
+'''
 
-
+print '\n'
 print json.dumps(jsonbody)
 parsedjson = json.loads(json.dumps(jsonbody))
 #print parsedjson
@@ -199,10 +204,11 @@ parsedjson = json.loads(json.dumps(jsonbody))
 #QPX Calls
 #response = QPXSearch(json.dumps(jsonbody))
 
-
+print '\n'
 c.execute('Select * from apihistory where date = date(\'now\',\'localtime\')')
 rows = c.fetchall()
 print rows
+print '\n'
 
 #c.execute('Select * from qbxresponse where substr(created,0,11) = date(\'now\',\'localtime\')')
 #rows = c.fetchall()
@@ -211,28 +217,46 @@ print rows
 
 #Parse QBX Response
 	#Grab the actual response in the future rather than querying DB
-c.execute('Select rawresponse from qbxresponse where substr(created,0,11) = date(\'now\',\'localtime\')')
+c.execute('Select rawresponse from qbxresponse where substr(created,0,11) = date(\'now\',\'localtime\') order by created desc')
 row = c.fetchone()
 r = json.loads(row[0])
-print 'requestId: ' + r['trips']['requestId']
-print 'price: ' + r['trips']['tripOption'][0]['saleTotal']
+print 'requestId: ' + r['trips']['requestId'] +'\n'
 
-print 'tripOptionId: ' + r['trips']['tripOption'][0]['id']
-print 'total flight duration: ' + str(r['trips']['tripOption'][0]['slice'][0]['duration'])
+x=0
+for to in r['trips']['tripOption']:
+	print 'triptOption {}: '.format(x)
+	print 'price: ' + to['saleTotal']
 
-print 'segmentId: ' + r['trips']['tripOption'][0]['slice'][0]['segment'][0]['id']
-print 'flight segment duration: ' + str(r['trips']['tripOption'][0]['slice'][0]['segment'][0]['duration'])
-print 'segment carrier: ' + str(r['trips']['tripOption'][0]['slice'][0]['segment'][0]['flight']['carrier'])
-print 'segment flight number: ' + str(r['trips']['tripOption'][0]['slice'][0]['segment'][0]['flight']['number'])
-print 'cabin: ' + r['trips']['tripOption'][0]['slice'][0]['segment'][0]['cabin']
-print 'bookingCode: ' + r['trips']['tripOption'][0]['slice'][0]['segment'][0]['bookingCode']
-print 'bookingCodeCount: ' + str(r['trips']['tripOption'][0]['slice'][0]['segment'][0]['bookingCodeCount'])
-print 'marriedSegmentGroup: ' + r['trips']['tripOption'][0]['slice'][0]['segment'][0]['marriedSegmentGroup']
+	print 'tripOptionId: ' + to['id']
+	print 'total flight duration: ' + str(to['slice'][0]['duration'])
 
-print 'legId: ' + r['trips']['tripOption'][0]['slice'][0]['segment'][0]['leg'][0]['id']
-print 'aircraft: ' + r['trips']['tripOption'][0]['slice'][0]['segment'][0]['leg'][0]['aircraft']
-print 'arrivaltime: ' + r['trips']['tripOption'][0]['slice'][0]['segment'][0]['leg'][0]['aircraft']
-print 'departuretime: ' + r['trips']['tripOption'][0]['slice'][0]['segment'][0]['leg'][0]['aircraft']
+	print 'segmentId: ' + to['slice'][0]['segment'][0]['id']
+	print 'segment carrier: ' + str(to['slice'][0]['segment'][0]['flight']['carrier'])
+	print 'segment flight number: ' + str(to['slice'][0]['segment'][0]['flight']['number'])
+	print 'cabin: ' + to['slice'][0]['segment'][0]['cabin']
+	print 'bookingCode: ' + to['slice'][0]['segment'][0]['bookingCode']
+	print 'bookingCodeCount: ' + str(to['slice'][0]['segment'][0]['bookingCodeCount'])
+	print 'marriedSegmentGroup: ' + to['slice'][0]['segment'][0]['marriedSegmentGroup']
+
+	print 'legId: ' + to['slice'][0]['segment'][0]['leg'][0]['id']
+	print 'aircraft: ' + to['slice'][0]['segment'][0]['leg'][0]['aircraft']
+	print 'arrivaltime: ' + to['slice'][0]['segment'][0]['leg'][0]['arrivalTime']
+	print 'departuretime: ' + to['slice'][0]['segment'][0]['leg'][0]['departureTime']
+	print 'origin: ' + to['slice'][0]['segment'][0]['leg'][0]['origin']
+	print 'destination: ' + to['slice'][0]['segment'][0]['leg'][0]['destination']
+	print 'duration: ' + str(to['slice'][0]['segment'][0]['leg'][0]['duration'])
+	print 'mileage: ' + str(to['slice'][0]['segment'][0]['leg'][0]['mileage'])
+
+	print 'fareId: ' + to['pricing'][0]['fare'][0]['id']
+	print 'fare basisCode: ' + to['pricing'][0]['fare'][0]['basisCode']
+	print 'passengers adult: ' + str(to['pricing'][0]['passengers']['adultCount'])
+	print 'baseFareTotal: ' + to['pricing'][0]['baseFareTotal']
+	print 'saleTaxTotal: ' + to['pricing'][0]['saleTaxTotal']
+	print 'saleTotal: ' + to['pricing'][0]['saleTotal']
+	print 'latestTicketingTime: ' + to['pricing'][0]['latestTicketingTime']
+
+	print '\n'
+	x=x+1
 
 
 '''
