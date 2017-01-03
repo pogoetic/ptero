@@ -224,8 +224,9 @@ print 'requestId: ' + r['trips']['requestId'] +'\n'
 
 x=0
 for to in r['trips']['tripOption']:
-	print 'triptOption {}: '.format(x)
-	print 'price: ' + to['saleTotal']
+	print 'tripOption {}: '.format(x)
+	print 'price: ' + to['saleTotal'][3:]
+	print 'currency: ' + to['saleTotal'][:3]
 
 	print 'tripOptionId: ' + to['id']
 	print 'total flight duration: ' + str(to['slice'][0]['duration'])
@@ -238,22 +239,43 @@ for to in r['trips']['tripOption']:
 	print 'bookingCodeCount: ' + str(to['slice'][0]['segment'][0]['bookingCodeCount'])
 	print 'marriedSegmentGroup: ' + to['slice'][0]['segment'][0]['marriedSegmentGroup']
 
-	print 'legId: ' + to['slice'][0]['segment'][0]['leg'][0]['id']
-	print 'aircraft: ' + to['slice'][0]['segment'][0]['leg'][0]['aircraft']
-	print 'arrivaltime: ' + to['slice'][0]['segment'][0]['leg'][0]['arrivalTime']
-	print 'departuretime: ' + to['slice'][0]['segment'][0]['leg'][0]['departureTime']
-	print 'origin: ' + to['slice'][0]['segment'][0]['leg'][0]['origin']
-	print 'destination: ' + to['slice'][0]['segment'][0]['leg'][0]['destination']
-	print 'duration: ' + str(to['slice'][0]['segment'][0]['leg'][0]['duration'])
-	print 'mileage: ' + str(to['slice'][0]['segment'][0]['leg'][0]['mileage'])
+	for l in to['slice'][0]['segment'][0]['leg']:
+		print 'legId: ' + l['id']
+		print 'aircraft: ' + l['aircraft']
+		print 'arrivaltime: ' + l['arrivalTime']
+		print 'departuretime: ' + l['departureTime']
+		print 'origin: ' + l['origin']
+		print 'destination: ' + l['destination']
+		print 'duration: ' + str(l['duration'])
+		print 'mileage: ' + str(l['mileage'])
 
 	print 'fareId: ' + to['pricing'][0]['fare'][0]['id']
 	print 'fare basisCode: ' + to['pricing'][0]['fare'][0]['basisCode']
-	print 'passengers adult: ' + str(to['pricing'][0]['passengers']['adultCount'])
-	print 'baseFareTotal: ' + to['pricing'][0]['baseFareTotal']
-	print 'saleTaxTotal: ' + to['pricing'][0]['saleTaxTotal']
-	print 'saleTotal: ' + to['pricing'][0]['saleTotal']
-	print 'latestTicketingTime: ' + to['pricing'][0]['latestTicketingTime']
+	for p in to['pricing']:
+		try:
+			print 'adultCount: ' + str(p['passengers']['adultCount'])
+		except:
+			pass
+		try:
+			print 'seniorCount: ' + str(p['passengers']['seniorCount'])
+		except:
+			pass
+		try:
+			print 'childCount: ' + str(p['passengers']['childCount'])
+		except:
+			pass
+		try:
+			print 'infantInSeatCount: ' + str(p['passengers']['infantInSeatCount'])
+		except:
+			pass
+		try:
+			print 'infantInLapCount: ' + str(p['passengers']['infantInLapCount'])
+		except:
+			pass
+		#print 'baseFareTotal: ' + p['baseFareTotal'][3:]
+		#print 'saleTaxTotal: ' + p['saleTaxTotal'][3:]
+		#print 'saleTotal: ' + p['saleTotal'][3:]
+	print 'latestTicketingTime: ' +to['pricing'][0]['latestTicketingTime']
 
 	print '\n'
 	x=x+1
