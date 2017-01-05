@@ -6,7 +6,6 @@ config = ConfigParser.RawConfigParser(allow_no_value=True)
 config.read('keys.cfg')
 qpxkey = config.get("API", "qpxkey")
 skyscannerkey = config.get("API", "skyscannerkey")
-seskey = config.get("API", "seskey")
 iatakey = config.get("API", "iatakey")
 geocodekey = config.get("API", "geocodekey")
 
