@@ -79,6 +79,18 @@ def update_qbx_response(rawresponse):
 	row = c.fetchone()
 	return row[0]
 
+def create_user_account(emailaddress):
+	c = conn.cursor()	
+	try:
+		newuuid=uuid.uuid4()
+		c.execute('Insert Into useraccount(useraccountid, emailaddress) Values(\'{}\',\'{}\')'.format(str(newuuid),emailaddress))
+		c.execute('Select * from useraccount Order by created desc LIMIT 1')
+		row = c.fetchone()
+		conn.commit()
+		return row[0]
+	except:
+		return None
+
 ############################################################################
 #DB Setup
 data_reset(reset=data_resetflag)
@@ -107,10 +119,8 @@ if table_exists('useraccount') == False:
 	#c.execute('Drop Table useraccount')
 	command = 'Create Table IF NOT EXISTS useraccount(useraccountid VARCHAR(36) PRIMARY KEY, emailaddress varchar(250), created DATETIME DEFAULT (DATETIME(\'now\',\'localtime\')))'
 	c.execute(command)
-	newuuid=uuid.uuid4()
-	command = 'Insert Into useraccount(useraccountid, emailaddress) Values(\'{}\',\'{}\')'.format(str(newuuid),'pogster@gmail.com')
-	c.execute(command)
 	conn.commit()
+	create_user_account('pogster@gmail.com')
 
 ############################################################################
 #User Settings
@@ -217,6 +227,7 @@ c.execute('Select * from useraccount')
 rows = c.fetchall()
 print rows
 print '\n'
+
 
 #c.execute('Select * from qbxresponse where substr(created,0,11) = date(\'now\',\'localtime\')')
 #rows = c.fetchall()
