@@ -101,19 +101,17 @@ if table_exists('apihistory') == False:
 	c.execute('CREATE UNIQUE INDEX {ix} on {tn}({cn},{cn2})'.format(ix='idx1', tn='apihistory', cn='apiID', cn2='date'))
 	conn.commit()
 
-#c.execute('Drop Table qbxresponse') 
-#conn.commit()
-
 if table_exists('qbxresponse') == False:
-	#c.execute('Drop Table apihistory') 
-	c.execute('Create Table IF NOT EXISTS qbxresponse(queryid INTEGER PRIMARY KEY, rawresponse BLOB, created datetime DEFAULT CURRENT_TIMESTAMP)')
+	#c.execute('Drop Table qbxresponse')
+	command = 'Create Table IF NOT EXISTS qbxresponse(queryid INTEGER PRIMARY KEY, rawresponse BLOB, created DATETIME DEFAULT (DATETIME(\'now\',\'localtime\')))'
+	c.execute(command)
 	conn.commit()
 
 ############################################################################
 #User Settings
 
 #QPX Requests 
-def QPXSearch(jsonquery,apikey=qpxkey):
+def qpx_search(jsonquery,apikey=qpxkey):
 	if api_limit_reached(apiID=1) == False:
 		headers = {'content-type': 'application/json'}
 		url = 'https://www.googleapis.com/qpxExpress/v1/trips/search?key={}'.format(apikey)
@@ -202,7 +200,7 @@ parsedjson = json.loads(json.dumps(jsonbody))
 
 ############################################################################
 #QPX Calls
-#response = QPXSearch(json.dumps(jsonbody))
+#response = qpx_search(json.dumps(jsonbody))
 
 print '\n'
 c.execute('Select * from apihistory where date = date(\'now\',\'localtime\')')
@@ -219,6 +217,7 @@ print '\n'
 	#Grab the actual response in the future rather than querying DB
 c.execute('Select rawresponse from qbxresponse where substr(created,0,11) = date(\'now\',\'localtime\') order by created desc')
 row = c.fetchone()
+print row
 r = json.loads(row[0])
 print 'requestId: ' + r['trips']['requestId'] +'\n'
 
@@ -291,6 +290,6 @@ print x['kind']
 
 conn.close
 
-
+exit()
 
 
