@@ -7,6 +7,7 @@ config.read('keys.cfg')
 qpxkey = config.get("API", "qpxkey")
 skyscannerkey = config.get("API", "skyscannerkey")
 seskey = config.get("API", "seskey")
+iatakey = config.get("API", "iatakey")
 
 conn = sqlite3.connect('pterodb')
 data_resetflag = False
@@ -124,7 +125,19 @@ if table_exists('useraccount') == False:
 
 ############################################################################
 #User Settings
+#User must input emailaddress and up to 10 Origin + Destination cities to track
 
+#We will use IATACodes API to lookup the airports in those cities + nearby airports with 50 miles. 
+#http://iatacodes.org/api/VERSION/ENDPOINT?api_key=YOUR-API-KEY
+# To find airports and cities by query string you have to send this API request https://iatacodes.org/api/v6/autocomplete?query=madrid.
+# To find nearest airports by latitude/longitude and distance you have to send this API request http://iatacodes.org/api/v6/nearby?lat=-6.1744&lng=106.8294&distance=1000.
+# To get data by all timezones you have to send this API request https://iatacodes.org/api/v6/timezones.
+
+#Alternatively can use this for airports since missing Lat/Long 
+# http://openflights.org/data.html#airport
+
+
+############################################################################
 #QPX Requests 
 def qpx_search(jsonquery,apikey=qpxkey):
 	if api_limit_reached(apiID=1) == False:
