@@ -1,5 +1,5 @@
 
-import requests, boto3, sqlite3, json, ConfigParser
+import requests, boto3, sqlite3, json, ConfigParser, uuid
 
 #Keys
 config = ConfigParser.RawConfigParser(allow_no_value=True)
@@ -9,7 +9,7 @@ skyscannerkey = config.get("API", "skyscannerkey")
 seskey = config.get("API", "seskey")
 
 conn = sqlite3.connect('pterodb')
-data_resetflag = True
+data_resetflag = False
 
 def table_exists(tablename):
 	c = conn.cursor()
@@ -105,9 +105,10 @@ if table_exists('qbxresponse') == False:
 
 if table_exists('useraccount') == False:
 	#c.execute('Drop Table useraccount')
-	command = 'Create Table IF NOT EXISTS useraccount(useraccountid INTEGER PRIMARY KEY, emailaddress varchar(250), created DATETIME DEFAULT (DATETIME(\'now\',\'localtime\')))'
+	command = 'Create Table IF NOT EXISTS useraccount(useraccountid VARCHAR(36) PRIMARY KEY, emailaddress varchar(250), created DATETIME DEFAULT (DATETIME(\'now\',\'localtime\')))'
 	c.execute(command)
-	command = 'Insert Into useraccount(emailaddress) Values(\'{}\')'.format('pogster@gmail.com')
+	newuuid=uuid.uuid4()
+	command = 'Insert Into useraccount(useraccountid, emailaddress) Values(\'{}\',\'{}\')'.format(str(newuuid),'pogster@gmail.com')
 	c.execute(command)
 	conn.commit()
 
@@ -208,6 +209,11 @@ parsedjson = json.loads(json.dumps(jsonbody))
 
 print '\n'
 c.execute('Select * from apihistory where date = date(\'now\',\'localtime\')')
+rows = c.fetchall()
+print rows
+print '\n'
+
+c.execute('Select * from useraccount')
 rows = c.fetchall()
 print rows
 print '\n'
