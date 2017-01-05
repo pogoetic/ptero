@@ -8,6 +8,7 @@ qpxkey = config.get("API", "qpxkey")
 skyscannerkey = config.get("API", "skyscannerkey")
 seskey = config.get("API", "seskey")
 iatakey = config.get("API", "iatakey")
+geocodekey = config.get("API", "geocodekey")
 
 conn = sqlite3.connect('pterodb')
 data_resetflag = False
@@ -127,14 +128,35 @@ if table_exists('useraccount') == False:
 #User Settings
 #User must input emailaddress and up to 10 Origin + Destination cities to track
 
+def iata_city_refresh(apikey=iatakey):
+	headers = {'content-type': 'application/json'}
+	url = ' https://iatacodes.org/api/v6/cities?api_key={}'.format(apikey)
+	r = requests.post(url, headers=headers)
+	if r.status_code == 200:
+		print str(r.status_code) +' - Success!'
+		print r.json()
+
+	return None
+
+iata_city_refresh()
+
+#1 - Get City Name from User (will want to pre-populate city names in the future from full list of IATA cities)
+#2 - Hit IATA Cities Endpoint, collect 'country_code'
+#3 - Hit IATA Country Endpoint, collect 'name'
+#4 - Hit Google Geocode API with CityName, CountryName, collect Lat/Long
+#5 - Hit IATA Nearby Endpoint using Lat/Long and 50mile distance for airport codes
+
 #We will use IATACodes API to lookup the airports in those cities + nearby airports with 50 miles. 
 #http://iatacodes.org/api/VERSION/ENDPOINT?api_key=YOUR-API-KEY
 # To find airports and cities by query string you have to send this API request https://iatacodes.org/api/v6/autocomplete?query=madrid.
 # To find nearest airports by latitude/longitude and distance you have to send this API request http://iatacodes.org/api/v6/nearby?lat=-6.1744&lng=106.8294&distance=1000.
 # To get data by all timezones you have to send this API request https://iatacodes.org/api/v6/timezones.
 
-#Alternatively can use this for airports since missing Lat/Long 
-# http://openflights.org/data.html#airport
+#We will use Google Maps Geocode API to geocode a city to get Lat/Long
+#https://developers.google.com/maps/documentation/geocoding/intro
+#https://maps.googleapis.com/maps/api/geocode/json?address=1600+Amphitheatre+Parkway,+Mountain+View,+CA&key=YOUR_API_KEY
+
+
 
 
 ############################################################################
@@ -229,6 +251,8 @@ parsedjson = json.loads(json.dumps(jsonbody))
 ############################################################################
 #QPX Calls
 #response = qpx_search(json.dumps(jsonbody))
+
+#Next we must construct a request based on stored user input, instead of hardcoding it
 
 print '\n'
 c.execute('Select * from apihistory where date = date(\'now\',\'localtime\')')
