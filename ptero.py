@@ -9,7 +9,7 @@ skyscannerkey = config.get("API", "skyscannerkey")
 seskey = config.get("API", "seskey")
 
 conn = sqlite3.connect('pterodb')
-data_resetflag = False
+data_resetflag = True
 
 def table_exists(tablename):
 	c = conn.cursor()
@@ -24,15 +24,11 @@ def table_exists(tablename):
 def data_reset(reset=False):
 	if reset == True:
 		c = conn.cursor()
-		if table_exists('apilimit') == True:
-			print 'Dropping Table apilimit'
-			c.execute('Drop Table apilimit')
-		if table_exists('apihistory') == True:
-			print 'Dropping Table apihistory'
-			c.execute('Drop Table apihistory') 
-		if table_exists('qbxresponse') == True:
-			print 'Dropping Table qbxresponse'
-			c.execute('Drop Table qbxresponse') 
+		table = ['apilimit','apihistory','qbxresponse','useraccount']
+		for t in table:
+			if table_exists(t) == True:
+				print 'Dropping Table {}'.format(t)
+				c.execute('Drop Table {}'.format(t))
 		c.execute('VACUUM;')
 		conn.commit()
 		print 'Data Reset Success'
@@ -104,6 +100,14 @@ if table_exists('apihistory') == False:
 if table_exists('qbxresponse') == False:
 	#c.execute('Drop Table qbxresponse')
 	command = 'Create Table IF NOT EXISTS qbxresponse(queryid INTEGER PRIMARY KEY, rawresponse BLOB, created DATETIME DEFAULT (DATETIME(\'now\',\'localtime\')))'
+	c.execute(command)
+	conn.commit()
+
+if table_exists('useraccount') == False:
+	#c.execute('Drop Table useraccount')
+	command = 'Create Table IF NOT EXISTS useraccount(useraccountid INTEGER PRIMARY KEY, emailaddress varchar(250), created DATETIME DEFAULT (DATETIME(\'now\',\'localtime\')))'
+	c.execute(command)
+	command = 'Insert Into useraccount(emailaddress) Values(\'{}\')'.format('pogster@gmail.com')
 	c.execute(command)
 	conn.commit()
 
