@@ -37,16 +37,32 @@ def table_exists(tablename):
 
 def iata_city_refresh(apikey=iatakey):
 	c = conn.cursor()
-	c.execute('Select max(created) from cities')
-	row = c.fetchone()
-	maxdate = parse(row[0])
-	today = datetime.utcnow()
-	#.replace(tzinfo=None)
-	print today
-	comparedate = maxdate+relativedelta(weeks=+1) #or (months=+1)
-	print relativedelta(today, comparedate)
-
-	if today > comparedate: 
+	c.execute('Select count(*) from cities')
+	numrows = c.fetchone()
+	if numrows[0] != 0:
+		c.execute('Select max(created) from cities')
+		maxdate = c.fetchone()
+		maxdate = parse(maxdate[0])
+		comparedate = maxdate+relativedelta(weeks=+1) #or (months=+1)
+		today = datetime.utcnow()	
+		if today > comparedate:
+			#API Call and refill table data
+			headers = {'content-type': 'application/json'}
+			url = ' https://iatacodes.org/api/v6/cities?api_key={}'.format(apikey)
+			r = requests.post(url, headers=headers)
+			if r.status_code == 200:
+				print str(r.status_code) +' - Success!'
+				response = r.json()
+				c = conn.cursor()
+				for i in response['response']:
+					c.execute('Insert Into cities(code, name, country_code) values(?,?,?)',(i['code'],i['name'],i['country_code']))
+				conn.commit()
+			else: 
+				print str(r.status_code) + ' - ERROR!'
+		else:
+			print 'IATA cities -> its not time for an update yet'
+	else: 
+		#API Call and refill table data
 		headers = {'content-type': 'application/json'}
 		url = ' https://iatacodes.org/api/v6/cities?api_key={}'.format(apikey)
 		r = requests.post(url, headers=headers)
@@ -59,8 +75,6 @@ def iata_city_refresh(apikey=iatakey):
 			conn.commit()
 		else: 
 			print str(r.status_code) + ' - ERROR!'
-	else:
-		print 'its not time for an update yet'
 	return None
 
 ############################################################################
@@ -69,7 +83,7 @@ data_reset(reset=data_resetflag)
 
 c = conn.cursor()
 if table_exists('cities') == False:
-	command = 'Create Table IF NOT EXISTS cities(code varchar(3) PRIMARY KEY, name varchar(100), country_code varchar(2), created DATETIME DEFAULT (DATETIME(\'now\',\'localtime\')))'
+	command = 'Create Table IF NOT EXISTS cities(code varchar(3) PRIMARY KEY, name varchar(100), country_code varchar(2), created DATETIME DEFAULT (DATETIME(\'now\')))'
 	c.execute(command)
 	conn.commit()
 	print 'Table cities Created!'
