@@ -42,26 +42,26 @@ def update_api_history(apiID,numcalls,reset=False):
 		conn.commit()
 		return False
 
-	command = 'Select count(*) from apihistory where apiID = {} and date = date(\'now\',\'localtime\')'.format(apiID)
+	command = 'Select count(*) from apihistory where apiID = {} and date = date(\'now\')'.format(apiID)
 	c.execute(command)
 	row = c.fetchone()
 	if row[0] == 0:
-		command = 'Insert Into apihistory(apiID,date,numcalls) Values({},date(\'now\',\'localtime\'),{})'.format(apiID,numcalls)
+		command = 'Insert Into apihistory(apiID,date,numcalls) Values({},date(\'now\'),{})'.format(apiID,numcalls)
 		c.execute(command)
 		conn.commit()
 		return True
 	else:
-		command = 'Select numcalls from apihistory where apiID = {} and date = date(\'now\',\'localtime\')'.format(apiID)
+		command = 'Select numcalls from apihistory where apiID = {} and date = date(\'now\')'.format(apiID)
 		c.execute(command)
 		row = c.fetchone()
-		command = 'Update apihistory Set numcalls = {} where apiID = {} and date = date(\'now\',\'localtime\')'.format(row[0]+numcalls,apiID)
+		command = 'Update apihistory Set numcalls = {} where apiID = {} and date = date(\'now\')'.format(row[0]+numcalls,apiID)
 		c.execute(command)
 		conn.commit()
 		return True
 
 def api_limit_reached(apiID):
 	c = conn.cursor()
-	c.execute('Select numcalls from apihistory where apiID={} and date = date(\'now\',\'localtime\')'.format(apiID))
+	c.execute('Select numcalls from apihistory where apiID={} and date = date(\'now\')'.format(apiID))
 	numcalls = c.fetchone()
 	c.execute('Select dailylimit from apilimit where apiID={}'.format(apiID))
 	dailylimit = c.fetchone()
@@ -112,13 +112,13 @@ if table_exists('apihistory') == False:
 
 if table_exists('qbxresponse') == False:
 	#c.execute('Drop Table qbxresponse')
-	command = 'Create Table IF NOT EXISTS qbxresponse(queryid INTEGER PRIMARY KEY, rawresponse BLOB, created DATETIME DEFAULT (DATETIME(\'now\',\'localtime\')))'
+	command = 'Create Table IF NOT EXISTS qbxresponse(queryid INTEGER PRIMARY KEY, rawresponse BLOB, created DATETIME DEFAULT (DATETIME(\'now\')))'
 	c.execute(command)
 	conn.commit()
 
 if table_exists('useraccount') == False:
 	#c.execute('Drop Table useraccount')
-	command = 'Create Table IF NOT EXISTS useraccount(useraccountid VARCHAR(36) PRIMARY KEY, emailaddress varchar(250), created DATETIME DEFAULT (DATETIME(\'now\',\'localtime\')))'
+	command = 'Create Table IF NOT EXISTS useraccount(useraccountid VARCHAR(36) PRIMARY KEY, emailaddress varchar(250), created DATETIME DEFAULT (DATETIME(\'now\')))'
 	c.execute(command)
 	conn.commit()
 	create_user_account('pogster@gmail.com')
@@ -127,17 +127,6 @@ if table_exists('useraccount') == False:
 #User Settings
 #User must input emailaddress and up to 10 Origin + Destination cities to track
 
-def iata_city_refresh(apikey=iatakey):
-	headers = {'content-type': 'application/json'}
-	url = ' https://iatacodes.org/api/v6/cities?api_key={}'.format(apikey)
-	r = requests.post(url, headers=headers)
-	if r.status_code == 200:
-		print str(r.status_code) +' - Success!'
-		print r.json()
-
-	return None
-
-iata_city_refresh()
 
 #1 - Get City Name from User (will want to pre-populate city names in the future from full list of IATA cities)
 #2 - Hit IATA Cities Endpoint, collect 'country_code'
@@ -254,7 +243,7 @@ parsedjson = json.loads(json.dumps(jsonbody))
 #Next we must construct a request based on stored user input, instead of hardcoding it
 
 print '\n'
-c.execute('Select * from apihistory where date = date(\'now\',\'localtime\')')
+c.execute('Select * from apihistory where date = date(\'now\')')
 rows = c.fetchall()
 print rows
 print '\n'
@@ -265,14 +254,14 @@ print rows
 print '\n'
 
 
-#c.execute('Select * from qbxresponse where substr(created,0,11) = date(\'now\',\'localtime\')')
+#c.execute('Select * from qbxresponse where substr(created,0,11) = date(\'now\')')
 #rows = c.fetchall()
 #for row in rows:
 #	print '\n'+ str(row) +'\n'
 
 #Parse QBX Response
 	#Grab the actual response in the future rather than querying DB
-c.execute('Select rawresponse from qbxresponse where substr(created,0,11) = date(\'now\',\'localtime\') order by created desc')
+c.execute('Select rawresponse from qbxresponse where substr(created,0,11) = date(\'now\') order by created desc')
 row = c.fetchone()
 print row
 r = json.loads(row[0])
