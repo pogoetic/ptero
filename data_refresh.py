@@ -35,7 +35,9 @@ def table_exists(tablename):
 	else:
 		return False
 
-def iata_city_refresh(apikey=iatakey):
+def iata_city_refresh(apikey=iatakey, force=False):
+	headers = {'content-type': 'application/json'}
+	url = ' https://iatacodes.org/api/v6/cities?api_key={}'.format(apikey)
 	c = conn.cursor()
 	c.execute('Select count(*) from cities')
 	numrows = c.fetchone()
@@ -43,17 +45,19 @@ def iata_city_refresh(apikey=iatakey):
 		c.execute('Select max(created) from cities')
 		maxdate = c.fetchone()
 		maxdate = parse(maxdate[0])
-		comparedate = maxdate+relativedelta(weeks=+1) #or (months=+1)
+		if force == True:
+			comparedate = maxdate+relativedelta(weeks=-1) #or (months=+1)
+		else: 
+			comparedate = maxdate+relativedelta(weeks=+1) #or (months=+1)
 		today = datetime.utcnow()	
 		if today > comparedate:
-			#API Call and refill table data
-			headers = {'content-type': 'application/json'}
-			url = ' https://iatacodes.org/api/v6/cities?api_key={}'.format(apikey)
-			r = requests.post(url, headers=headers)
+			r = requests.post(url, headers=headers) #API Call and refill table data
 			if r.status_code == 200:
 				print str(r.status_code) +' - Success!'
 				response = r.json()
 				c = conn.cursor()
+				c.execute('Delete From cities;')
+				c.execute('VACUUM;')
 				for i in response['response']:
 					c.execute('Insert Into cities(code, name, country_code) values(?,?,?)',(i['code'],i['name'],i['country_code']))
 				conn.commit()
@@ -62,10 +66,7 @@ def iata_city_refresh(apikey=iatakey):
 		else:
 			print 'IATA cities -> its not time for an update yet'
 	else: 
-		#API Call and refill table data
-		headers = {'content-type': 'application/json'}
-		url = ' https://iatacodes.org/api/v6/cities?api_key={}'.format(apikey)
-		r = requests.post(url, headers=headers)
+		r = requests.post(url, headers=headers) #API Call and refill table data
 		if r.status_code == 200:
 			print str(r.status_code) +' - Success!'
 			response = r.json()
@@ -91,6 +92,13 @@ if table_exists('cities') == False:
 ############################################################################
 
 
-iata_city_refresh()
-
+iata_city_refresh(force=False)
 #Now Add Google API for Lat/Long of each City
+
+c = conn.cursor()
+c.execute('Select * from cities')
+rows = c.fetchall()
+for r in rows:
+	print r
+
+conn.close
