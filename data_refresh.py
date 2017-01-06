@@ -83,7 +83,7 @@ data_reset(reset=data_resetflag)
 
 c = conn.cursor()
 if table_exists('cities') == False:
-	command = 'Create Table IF NOT EXISTS cities(code varchar(3) PRIMARY KEY, name varchar(100), country_code varchar(2), created DATETIME DEFAULT (DATETIME(\'now\')))'
+	command = 'Create Table IF NOT EXISTS cities(code varchar(3) PRIMARY KEY, name varchar(100), country_code varchar(2), lat Decimal(9,6), long Decimal(9,6), created DATETIME DEFAULT (DATETIME(\'now\')))'
 	c.execute(command)
 	conn.commit()
 	print 'Table cities Created!'
@@ -93,3 +93,4 @@ if table_exists('cities') == False:
 
 iata_city_refresh()
 
+#Now Add Google API for Lat/Long of each City
