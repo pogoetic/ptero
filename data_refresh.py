@@ -1,14 +1,14 @@
 
-import requests, boto3, sqlite3, json, ConfigParser, uuid
-from datetime import *
+import requests, boto3, sqlite3, json, ConfigParser, uuid, time, datetime
+from dateutil.parser import parse
 from dateutil.relativedelta import *
-from dateutil.parser import *
-from dateutil.tz import *
+from dateutil import tz
 
 #Keys
 config = ConfigParser.RawConfigParser(allow_no_value=True)
 config.read('keys.cfg')
 iatakey = config.get("API", "iatakey")
+geocodekey = config.get("API", "geocodekey")
 
 conn = sqlite3.connect('pterodb')
 data_resetflag = False
@@ -49,13 +49,14 @@ def iata_city_refresh(apikey=iatakey, force=False):
 			comparedate = maxdate+relativedelta(weeks=-1) #or (months=+1)
 		else: 
 			comparedate = maxdate+relativedelta(weeks=+1) #or (months=+1)
-		today = datetime.utcnow()	
+		today = datetime.datetime.utcnow()	
 		if today > comparedate:
 			r = requests.post(url, headers=headers) #API Call and refill table data
 			if r.status_code == 200:
 				print str(r.status_code) +' - Success!'
 				response = r.json()
 				c = conn.cursor()
+				#Make this an update new instead of truncate/insert
 				c.execute('Delete From cities;')
 				c.execute('VACUUM;')
 				for i in response['response']:
@@ -94,11 +95,43 @@ if table_exists('cities') == False:
 
 iata_city_refresh(force=False)
 #Now Add Google API for Lat/Long of each City
+#9368 cities but 2500 per day limit and 50 per second limit. Will need to save existing lat/long so as not to requery each week. 
 
 c = conn.cursor()
-c.execute('Select * from cities')
+c.execute("Select * from cities where lat IS NULL")
 rows = c.fetchall()
+
+#for r in rows:
+	# print r
+# exit()
+
+
+headers = {'content-type': 'application/json'}
+i = 1
 for r in rows:
-	print r
+	if i<=2300: #2450
+		code = r[0]
+		city = r[1].encode("utf8")
+		city = city.translate(None, "'")
+		country = r[2]
+		url = 'https://maps.googleapis.com/maps/api/geocode/json?address={}&components=country:{}&key={}'.format(city,country,geocodekey)
+		print code +' - '+url
+		r = requests.post(url, headers=headers)
+		if r.status_code == 200:
+			response = r.json()
+			lat = response['results'][0]['geometry']['location']['lat']
+			lng = response['results'][0]['geometry']['location']['lng']
+			c.execute("Update cities Set lat={},long={} Where name = '{}' AND country_code = '{}'".format(lat,lng,city,country))
+			conn.commit()
+		else: 
+			print str(r.status_code) + ' - ERROR!'
+
+		time.sleep(0.1) #no more than 10 requests per second
+		i=i+1
+	else:
+		break 
+
+print '{} rows Done!'.format(i-1)
+
 
 conn.close
