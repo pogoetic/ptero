@@ -36,6 +36,7 @@ def table_exists(tablename):
 		return False
 
 def iata_city_refresh(apikey=iatakey, force=False):
+	#IATA Cities DB
 	headers = {'content-type': 'application/json'}
 	url = ' https://iatacodes.org/api/v6/cities?api_key={}'.format(apikey)
 	c = conn.cursor()
@@ -53,15 +54,18 @@ def iata_city_refresh(apikey=iatakey, force=False):
 		if today > comparedate:
 			r = requests.post(url, headers=headers) #API Call and refill table data
 			if r.status_code == 200:
-				print str(r.status_code) +' - Success!'
 				response = r.json()
 				c = conn.cursor()
-				#Make this an update new instead of truncate/insert
-				c.execute('Delete From cities;')
-				c.execute('VACUUM;')
+				count = 0
 				for i in response['response']:
-					c.execute('Insert Into cities(code, name, country_code) values(?,?,?)',(i['code'],i['name'],i['country_code']))
+					c.execute("Select * from cities where code = '{}'".format(i['code']))
+					row = c.fetchone() 
+					if row[0] == None: #Only insert new rows
+						#print 'inserting {}, {}, {}'.format(i['code'],i['name'].encode('utf-8'),i['country_code'])
+						c.execute('Insert Into cities(code, name, country_code) values(?,?,?)',(i['code'],i['name'],i['country_code']))
+						count = count+1
 				conn.commit()
+				print 'iata_cities_refresh - '+ str(r.status_code) +' - Success - '+str(count)+' updated!'
 			else: 
 				print str(r.status_code) + ' - ERROR!'
 		else:
@@ -69,15 +73,60 @@ def iata_city_refresh(apikey=iatakey, force=False):
 	else: 
 		r = requests.post(url, headers=headers) #API Call and refill table data
 		if r.status_code == 200:
-			print str(r.status_code) +' - Success!'
 			response = r.json()
 			c = conn.cursor()
+			count = 0
 			for i in response['response']:
 				c.execute('Insert Into cities(code, name, country_code) values(?,?,?)',(i['code'],i['name'],i['country_code']))
-			conn.commit()
+				count = count+1
+			conn.commit()	
+			print 'iata_cities_refresh - '+ str(r.status_code) +' - Success - '+str(count)+' updated!'
 		else: 
 			print str(r.status_code) + ' - ERROR!'
 	return None
+
+def geocode_cities():
+	#Google API for Lat/Long of each City
+	#9368 cities but 2500 per day limit and 50 per second limit. Will need to save existing lat/long so as not to requery each week. 
+	c = conn.cursor()
+	c.execute("Select * from cities where lat IS NULL")
+	#c.execute("Select * from cities where code > 'ATC'")
+	rows = c.fetchall()
+
+	#for r in rows:
+	#	 print r
+	#exit()
+
+	headers = {'content-type': 'application/json'}
+	i = 1
+	for r in rows:
+		if i<=1: #2450
+			code = r[0]
+			city = r[1].encode("utf8")
+			city = city.translate(None, "'") #strip ' from city names
+			country = r[2]
+			print code 
+			print city
+			print country
+			url = 'https://maps.googleapis.com/maps/api/geocode/json?address={}&components=country:{}&key={}'.format(city,country,geocodekey)
+			r = requests.post(url, headers=headers)
+			if r.status_code == 200:
+				response = r.json()
+				lat = response['results'][0]['geometry']['location']['lat']
+				lng = response['results'][0]['geometry']['location']['lng']
+				state = response['results'][0]['geometry']['location']['lng']
+				c.execute("Update cities Set lat={},long={} Where name = '{}' AND country_code = '{}'".format(lat,lng,city,country))
+				conn.commit()
+			else: 
+				print str(r.status_code) + ' - ERROR!'
+
+			time.sleep(0.1) #no more than 10 requests per second
+			i=i+1
+		else:
+			break 
+
+	print '{} rows geocoded!'.format(i-1)
+
 
 ############################################################################
 #DB Setup
@@ -92,46 +141,8 @@ if table_exists('cities') == False:
 
 ############################################################################
 
-
 iata_city_refresh(force=False)
-#Now Add Google API for Lat/Long of each City
-#9368 cities but 2500 per day limit and 50 per second limit. Will need to save existing lat/long so as not to requery each week. 
 
-c = conn.cursor()
-c.execute("Select * from cities where lat IS NULL")
-rows = c.fetchall()
-
-#for r in rows:
-	# print r
-# exit()
-
-
-headers = {'content-type': 'application/json'}
-i = 1
-for r in rows:
-	if i<=2300: #2450
-		code = r[0]
-		city = r[1].encode("utf8")
-		city = city.translate(None, "'")
-		country = r[2]
-		url = 'https://maps.googleapis.com/maps/api/geocode/json?address={}&components=country:{}&key={}'.format(city,country,geocodekey)
-		print code +' - '+url
-		r = requests.post(url, headers=headers)
-		if r.status_code == 200:
-			response = r.json()
-			lat = response['results'][0]['geometry']['location']['lat']
-			lng = response['results'][0]['geometry']['location']['lng']
-			c.execute("Update cities Set lat={},long={} Where name = '{}' AND country_code = '{}'".format(lat,lng,city,country))
-			conn.commit()
-		else: 
-			print str(r.status_code) + ' - ERROR!'
-
-		time.sleep(0.1) #no more than 10 requests per second
-		i=i+1
-	else:
-		break 
-
-print '{} rows Done!'.format(i-1)
-
+#geocode_cities()
 
 conn.close
