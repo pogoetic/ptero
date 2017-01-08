@@ -99,24 +99,24 @@ def geocode_cities():
 
 	headers = {'content-type': 'application/json'}
 	i = 1
+	count = 0
 	for r in rows:
-		if i<=1: #2450
+		if i<=2450: #2450 limit per day
 			code = r[0]
 			city = r[1].encode("utf8")
 			city = city.translate(None, "'") #strip ' from city names
 			country = r[2]
-			print code 
-			print city
-			print country
 			url = 'https://maps.googleapis.com/maps/api/geocode/json?address={}&components=country:{}&key={}'.format(city,country,geocodekey)
 			r = requests.post(url, headers=headers)
 			if r.status_code == 200:
 				response = r.json()
 				lat = response['results'][0]['geometry']['location']['lat']
 				lng = response['results'][0]['geometry']['location']['lng']
-				state = response['results'][0]['geometry']['location']['lng']
+				state = response['results'][0][address_components]
+				print state
 				c.execute("Update cities Set lat={},long={} Where name = '{}' AND country_code = '{}'".format(lat,lng,city,country))
 				conn.commit()
+				count = count+1
 			else: 
 				print str(r.status_code) + ' - ERROR!'
 
@@ -124,8 +124,7 @@ def geocode_cities():
 			i=i+1
 		else:
 			break 
-
-	print '{} rows geocoded!'.format(i-1)
+	print '{} rows geocoded!'.format(count)
 
 
 ############################################################################
@@ -142,7 +141,8 @@ if table_exists('cities') == False:
 ############################################################################
 
 iata_city_refresh(force=False)
-
 #geocode_cities()
+
+#Should use update_api_history function from ptero.py to track this max calls constraint
 
 conn.close
