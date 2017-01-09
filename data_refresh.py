@@ -129,10 +129,7 @@ def geocode_cities():
                             state = d.get('administrative_area_level_1').encode("utf8")
                             state = state.replace("'", "''")
                 print "Update cities Set state='{}',lat={},long={} Where name = '{}' AND country_code = '{}'".format(state,lat,lng,cityorig,country)
-                if state != None:
-                    c.execute("Update cities Set state='{}',lat={},long={} Where name = '{}' AND country_code = '{}'".format(state,lat,lng,cityorig,country))
-                else:
-                    c.execute("Update cities Set lat={},long={} Where name = '{}' AND country_code = '{}'".format(lat,lng,cityorig,country))
+                c.execute("Update cities Set state='{}',lat={},long={} Where name = '{}' AND country_code = '{}'".format(state,lat,lng,cityorig,country))
                 conn.commit()
                 count = count+1
             else: 
