@@ -102,7 +102,7 @@ def geocode_cities():
     i = 1
     count = 0
     for r in rows:
-        if i<=10: #2450 limit per day
+        if i<=2450-475: #2450 limit per day
             code = r[0]
             cityorig = r[1].encode("utf8")
             cityorig = cityorig.replace("'", "''") #double up on quotes to escape them in the WHERE clause
@@ -125,8 +125,9 @@ def geocode_cities():
                 for s in statesearch:
                     d = {s['types'][0]:s['short_name']}
                     if d.get('administrative_area_level_1'):
-                        state = d.get('administrative_area_level_1')
-                #print "Update cities Set state='{}',lat={},long={} Where name = '{}' AND country_code = '{}'".format(state,lat,lng,cityorig,country)
+                        state = d.get('administrative_area_level_1').encode("utf8")
+                        state = state.replace("'", "''")
+                print "Update cities Set state='{}',lat={},long={} Where name = '{}' AND country_code = '{}'".format(state,lat,lng,cityorig,country)
                 if state != None:
                     c.execute("Update cities Set state='{}',lat={},long={} Where name = '{}' AND country_code = '{}'".format(state,lat,lng,cityorig,country))
                 else:
