@@ -123,10 +123,11 @@ def geocode_cities():
                 statesearch = response['results'][0]['address_components']
                 state = None
                 for s in statesearch:
-                    d = {s['types'][0]:s['short_name']}
-                    if d.get('administrative_area_level_1'):
-                        state = d.get('administrative_area_level_1').encode("utf8")
-                        state = state.replace("'", "''")
+                    if s['types']:
+                        d = {s['types'][0]:s['short_name']}
+                        if d.get('administrative_area_level_1'):
+                            state = d.get('administrative_area_level_1').encode("utf8")
+                            state = state.replace("'", "''")
                 print "Update cities Set state='{}',lat={},long={} Where name = '{}' AND country_code = '{}'".format(state,lat,lng,cityorig,country)
                 if state != None:
                     c.execute("Update cities Set state='{}',lat={},long={} Where name = '{}' AND country_code = '{}'".format(state,lat,lng,cityorig,country))
