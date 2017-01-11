@@ -145,6 +145,9 @@ def geocode_cities():
                         #Retry with country in the address, this fixes some edge cases like 'St Martin, MF'
                         url = 'https://maps.googleapis.com/maps/api/geocode/json?address={}&key={}'.format(city+','+country,geocodekey)
                         attempt+=1
+                    elif response['status'] == 'OVER_QUERY_LIMIT':
+                        #update_api_history(apiID=2,numcalls=2500)
+                        break
                     else:
                         print 'Error: ', response['status']
                         attempt+=1
@@ -153,7 +156,6 @@ def geocode_cities():
                     attempt+=1
 
             time.sleep(0.1) #no more than 10 requests per second
-            #i+=1
             update_api_history(apiID=2,numcalls=attempt)
         else:
             break 
@@ -173,7 +175,7 @@ if table_exists('cities') == False:
 
 ############################################################################
 
-#update_api_history(apiID=2,numcalls=2458)
+#update_api_history(apiID=2,numcalls=2517)
 iata_city_refresh(force=False)
 geocode_cities()
 
