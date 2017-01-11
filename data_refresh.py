@@ -3,6 +3,8 @@ import requests, sqlite3, json, ConfigParser, time, datetime
 from dateutil.parser import parse
 from dateutil.relativedelta import *
 from dateutil import tz
+from ptero import update_api_history 
+from ptero import api_limit_reached
 
 #Keys
 config = ConfigParser.RawConfigParser(allow_no_value=True)
@@ -99,10 +101,11 @@ def geocode_cities():
     #exit()
 
     headers = {'content-type': 'application/json'}
-    i = 1
+    #i = 1
     count = 0
     for r in rows:
-        if i<=2450: #2450 limit per day
+        if api_limit_reached(apiID=2) == False:
+        #if i<=0: #2450 limit per day
             code = r[0]
             cityorig = r[1].encode("utf8")
             cityorig = cityorig.replace("'", "''") #double up on quotes to escape them in the WHERE clause
@@ -150,7 +153,8 @@ def geocode_cities():
                     attempt+=1
 
             time.sleep(0.1) #no more than 10 requests per second
-            i+=1
+            #i+=1
+            update_api_history(apiID=2,numcalls=attempt)
         else:
             break 
     print '{} rows geocoded!'.format(count)
@@ -169,6 +173,7 @@ if table_exists('cities') == False:
 
 ############################################################################
 
+#update_api_history(apiID=2,numcalls=2458)
 iata_city_refresh(force=False)
 geocode_cities()
 
