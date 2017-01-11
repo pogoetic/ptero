@@ -1,5 +1,5 @@
 
-import requests, boto3, sqlite3, json, ConfigParser, uuid, time, datetime
+import requests, sqlite3, json, ConfigParser, time, datetime
 from dateutil.parser import parse
 from dateutil.relativedelta import *
 from dateutil import tz
@@ -102,7 +102,7 @@ def geocode_cities():
     i = 1
     count = 0
     for r in rows:
-        if i<=2450-475: #2450 limit per day
+        if i<=2450: #2450 limit per day
             code = r[0]
             cityorig = r[1].encode("utf8")
             cityorig = cityorig.replace("'", "''") #double up on quotes to escape them in the WHERE clause
@@ -113,30 +113,44 @@ def geocode_cities():
                 url = 'https://maps.googleapis.com/maps/api/geocode/json?address={}&components=country:{}|administrative_area:{}&key={}'.format(city,country,state,geocodekey)
             else: 
                 url = 'https://maps.googleapis.com/maps/api/geocode/json?address={}&components=country:{}&key={}'.format(city,country,geocodekey)
-            r = requests.post(url, headers=headers)
-            if r.status_code == 200:
-                response = r.json()
-                #Get Lat/Long of the City/Country
-                lat = response['results'][0]['geometry']['location']['lat']
-                lng = response['results'][0]['geometry']['location']['lng']
-                #Get State of Lat/Long
-                statesearch = response['results'][0]['address_components']
-                state = None
-                for s in statesearch:
-                    if s['types']:
-                        d = {s['types'][0]:s['short_name']}
-                        if d.get('administrative_area_level_1'):
-                            state = d.get('administrative_area_level_1').encode("utf8")
-                            state = state.replace("'", "''")
-                print "Update cities Set state='{}',lat={},long={} Where name = '{}' AND country_code = '{}'".format(state,lat,lng,cityorig,country)
-                c.execute("Update cities Set state='{}',lat={},long={} Where name = '{}' AND country_code = '{}'".format(state,lat,lng,cityorig,country))
-                conn.commit()
-                count = count+1
-            else: 
-                print str(r.status_code) + ' - ERROR!'
+            attempt = 1
+            for attempt in range(3):
+                r = requests.post(url, headers=headers)
+                if r.status_code == 200:
+                    response = r.json()
+                    # print r.url                
+                    # print response
+                    # Get Lat/Long of the City/Country
+                    if response['status'] == 'OK':
+                        lat = response['results'][0]['geometry']['location']['lat']
+                        lng = response['results'][0]['geometry']['location']['lng']
+                        #Get State of Lat/Long
+                        statesearch = response['results'][0]['address_components']
+                        state = None
+                        for s in statesearch:
+                            if s['types']:
+                                d = {s['types'][0]:s['short_name']}
+                                if d.get('administrative_area_level_1'):
+                                    state = d.get('administrative_area_level_1').encode("utf8")
+                                    state = state.replace("'", "''")
+                        print "Update cities Set state='{}',lat={},long={} Where name = '{}' AND country_code = '{}'".format(state,lat,lng,cityorig,country)
+                        c.execute("Update cities Set state='{}',lat={},long={} Where name = '{}' AND country_code = '{}'".format(state,lat,lng,cityorig,country))
+                        conn.commit()
+                        count+=1
+                        break
+                    elif response['status'] == 'ZERO_RESULTS':
+                        #Retry with country in the address, this fixes some edge cases like 'St Martin, MF'
+                        url = 'https://maps.googleapis.com/maps/api/geocode/json?address={}&key={}'.format(city+','+country,geocodekey)
+                        attempt+=1
+                    else:
+                        print 'Error: ', response['status']
+                        attempt+=1
+                else: 
+                    print str(r.status_code) + ' - API ERROR!'
+                    attempt+=1
 
             time.sleep(0.1) #no more than 10 requests per second
-            i=i+1
+            i+=1
         else:
             break 
     print '{} rows geocoded!'.format(count)
