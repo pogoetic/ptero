@@ -95,13 +95,7 @@ def geocode_cities():
     c.execute("Select * from cities where lat IS NULL or long IS NULL or state IS NULL")
     #c.execute("Select * from cities where code > 'ATC'")
     rows = c.fetchall()
-
-    #for r in rows:
-    #    print r
-    #exit()
-
     headers = {'content-type': 'application/json'}
-    #i = 1
     count = 0
     for r in rows:
         if api_limit_reached(apiID=2) == False:
@@ -147,7 +141,6 @@ def geocode_cities():
                         url = 'https://maps.googleapis.com/maps/api/geocode/json?address={}&key={}'.format(city+','+country,geocodekey)
                         attempt+=1
                     elif response['status'] == 'OVER_QUERY_LIMIT':
-                        #update_api_history(apiID=2,numcalls=2500)
                         break
                     else:
                         print 'Error: ', response['status']
@@ -156,8 +149,9 @@ def geocode_cities():
                     print str(r.status_code) + ' - API ERROR!'
                     attempt+=1
 
-            time.sleep(0.1) #no more than 10 requests per second
+            time.sleep(0.04) #no more than 25 requests per second
         else:
+            print 'Google Geocode -> Exceeded Daily API Limit'
             break 
     print '{} rows geocoded!'.format(count)
 
