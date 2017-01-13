@@ -92,7 +92,7 @@ def geocode_cities():
     #Google API for Lat/Long of each City
     #9368 cities but 2500 per day limit and 50 per second limit. Will need to save existing lat/long so as not to requery each week. 
     c = conn.cursor()
-    c.execute("Select * from cities where lat IS NULL")
+    c.execute("Select * from cities where lat IS NULL or long IS NULL or state IS NULL")
     #c.execute("Select * from cities where code > 'ATC'")
     rows = c.fetchall()
 
@@ -119,6 +119,7 @@ def geocode_cities():
             attempt = 1
             for attempt in range(3):
                 r = requests.post(url, headers=headers)
+                update_api_history(apiID=2,numcalls=1)
                 if r.status_code == 200:
                     response = r.json()
                     # print r.url                
@@ -156,7 +157,6 @@ def geocode_cities():
                     attempt+=1
 
             time.sleep(0.1) #no more than 10 requests per second
-            update_api_history(apiID=2,numcalls=attempt)
         else:
             break 
     print '{} rows geocoded!'.format(count)
