@@ -155,6 +155,57 @@ def geocode_cities():
             break 
     print '{} rows geocoded!'.format(count)
 
+def iata_airport_refresh(apikey=iatakey, force=False):
+    #IATA Airport DB
+    headers = {'content-type': 'application/json'}
+    url = ' https://iatacodes.org/api/v6/airports?api_key={}'.format(apikey)
+    c = conn.cursor()
+    c.execute('Select count(*) from airports')
+    numrows = c.fetchone()
+    if numrows[0] != 0:
+        c.execute('Select max(created) from airports')
+        maxdate = c.fetchone()
+        maxdate = parse(maxdate[0])
+        if force == True:
+            comparedate = maxdate+relativedelta(weeks=-1) #or (months=+1)
+        else: 
+            comparedate = maxdate+relativedelta(weeks=+1) #or (months=+1)
+        today = datetime.datetime.utcnow()  
+        if today > comparedate:
+            r = requests.post(url, headers=headers) #API Call and refill table data
+            if r.status_code == 200:
+                response = r.json()
+                c = conn.cursor()
+                count = 0
+                for i in response['response']:
+                    c.execute("Select * from airports where code = '{}'".format(i['code']))
+                    row = c.fetchone() 
+                    if row[0] == None: #Only insert new rows
+                        #print 'inserting {}, {}, {}'.format(i['code'],i['name'].encode('utf-8'),i['country_code'])
+                        c.execute('Insert Into airports(code, name) values(?,?)',(i['code'],i['name']))
+                        count = count+1
+                conn.commit()
+                print 'iata_airports_refresh - '+ str(r.status_code) +' - Success - '+str(count)+' updated!'
+            else: 
+                print str(r.status_code) + ' - ERROR!'
+        else:
+            print 'IATA airports -> its not time for an update yet'
+    else: 
+        r = requests.post(url, headers=headers) #API Call and refill table data
+        if r.status_code == 200:
+            response = r.json()
+            c = conn.cursor()
+            count = 0
+            for i in response['response']:
+                c.execute('Insert Into airports(code, name) values(?,?)',(i['code'],i['name']))
+                count = count+1
+
+            conn.commit()   
+            print 'iata_airport_refresh - '+ str(r.status_code) +' - Success - '+str(count)+' updated!'
+        else: 
+            print str(r.status_code) + ' - ERROR!'
+    return None
+
 
 ############################################################################
 #DB Setup
@@ -162,18 +213,26 @@ data_reset(reset=data_resetflag)
 
 c = conn.cursor()
 if table_exists('cities') == False:
-    command = 'Create Table IF NOT EXISTS cities(code varchar(3) PRIMARY KEY, name varchar(100), country_code varchar(2), state varchar(100), lat Decimal(9,6), long Decimal(9,6), created DATETIME DEFAULT (DATETIME(\'now\')))'
+    command = 'Create Table IF NOT EXISTS cities(cityID INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT UNIQUE, code varchar(3), name varchar(100), country_code varchar(2), state varchar(100), lat Decimal(9,6), long Decimal(9,6), created DATETIME DEFAULT (DATETIME(\'now\')))'
+    c.execute(command)
+    command = 'CREATE UNIQUE INDEX IDX_cities ON cities (code ASC)'
     c.execute(command)
     conn.commit()
     print 'Table cities Created!'
 
+    command = 'Create Table IF NOT EXISTS airports(airportID INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT UNIQUE, code varchar(3), name varchar(100), lat Decimal(9,6), long Decimal(9,6), created DATETIME DEFAULT (DATETIME(\'now\')))'
+    c.execute(command)
+    command = 'CREATE UNIQUE INDEX IDX_airports ON airports (code ASC)'
+    c.execute(command)
+    conn.commit()
+    print 'Table ariports Created!'
+
 ############################################################################
 
-#update_api_history(apiID=2,numcalls=2517)
 iata_city_refresh(force=False)
 geocode_cities()
+iata_airport_refresh(force=False)
 
 
-#Should use update_api_history function from ptero.py to track this max calls constraint
 
 conn.close
