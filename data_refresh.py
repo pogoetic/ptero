@@ -40,7 +40,7 @@ def table_exists(tablename):
 def iata_city_refresh(apikey=iatakey, force=False):
     #IATA Cities DB
     headers = {'content-type': 'application/json'}
-    url = ' https://iatacodes.org/api/v6/cities?api_key={}'.format(apikey)
+    url = 'https://iatacodes.org/api/v6/cities?api_key={}'.format(apikey)
     c = conn.cursor()
     c.execute('Select count(*) from cities')
     numrows = c.fetchone()
@@ -70,7 +70,9 @@ def iata_city_refresh(apikey=iatakey, force=False):
                 print 'iata_cities_refresh - '+ str(r.status_code) +' - Success - '+str(count)+' updated!'
             else: 
                 print str(r.status_code) + ' - ERROR!'
-        else:
+        else: # we update one date so our check run logic holds
+            c.execute('Update cities set created = DATETIME(\'now\') where cityID = 1')
+            conn.commit()
             print 'IATA cities -> its not time for an update yet'
     else: 
         r = requests.post(url, headers=headers) #API Call and refill table data
@@ -97,9 +99,9 @@ def geocode_cities():
     rows = c.fetchall()
     headers = {'content-type': 'application/json'}
     count = 0
+    overlimit = 0
     for r in rows:
-        if api_limit_reached(apiID=2) == False:
-        #if i<=0: #2450 limit per day
+        if api_limit_reached(apiID=2) == False and overlimit == 0:
             code = r[0]
             cityorig = r[1].encode("utf8")
             cityorig = cityorig.replace("'", "''") #double up on quotes to escape them in the WHERE clause
@@ -141,19 +143,20 @@ def geocode_cities():
                         url = 'https://maps.googleapis.com/maps/api/geocode/json?address={}&key={}'.format(city+','+country,geocodekey)
                         attempt+=1
                     elif response['status'] == 'OVER_QUERY_LIMIT':
+                        overlimit = 1
                         break
                     else:
                         print 'Error: ', response['status']
                         attempt+=1
                 else: 
                     print str(r.status_code) + ' - API ERROR!'
-                    attempt+=1
+                    attempt+=1     
 
             time.sleep(0.04) #no more than 25 requests per second
         else:
             print 'Google Geocode -> Exceeded Daily API Limit'
             break 
-    print '{} rows geocoded!'.format(count)
+    print 'Google Geocode -> {} rows geocoded!'.format(count)
 
 def iata_airport_refresh(apikey=iatakey, force=False):
     #IATA Airport DB
@@ -188,7 +191,9 @@ def iata_airport_refresh(apikey=iatakey, force=False):
                 print 'iata_airports_refresh - '+ str(r.status_code) +' - Success - '+str(count)+' updated!'
             else: 
                 print str(r.status_code) + ' - ERROR!'
-        else:
+        else: # we update one date so our check run logic holds
+            c.execute('Update airports set created = DATETIME(\'now\') where airportID = 1')
+            conn.commit()
             print 'IATA airports -> its not time for an update yet'
     else: 
         r = requests.post(url, headers=headers) #API Call and refill table data
