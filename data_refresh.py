@@ -18,7 +18,7 @@ data_resetflag = False
 def data_reset(reset=False):
     if reset == True:
         c = conn.cursor()
-        table = ['cities']
+        table = ['cities','airports']
         for t in table:
             if table_exists(t) == True:
                 print 'Dropping Table {}'.format(t)
@@ -102,12 +102,12 @@ def geocode_cities():
     overlimit = 0
     for r in rows:
         if api_limit_reached(apiID=2) == False and overlimit == 0:
-            code = r[0]
-            cityorig = r[1].encode("utf8")
+            code = r[1]
+            cityorig = r[2].encode("utf8")
             cityorig = cityorig.replace("'", "''") #double up on quotes to escape them in the WHERE clause
             city = cityorig.translate(None, "'") #strip ' from city names
-            country = r[2]
-            state = r[3]
+            country = r[3]
+            state = r[4]
             if state != None:
                 url = 'https://maps.googleapis.com/maps/api/geocode/json?address={}&components=country:{}|administrative_area:{}&key={}'.format(city,country,state,geocodekey)
             else: 
@@ -237,6 +237,10 @@ if table_exists('cities') == False:
 iata_city_refresh(force=False)
 geocode_cities()
 iata_airport_refresh(force=False)
+
+
+
+
 
 
 
