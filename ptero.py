@@ -92,6 +92,17 @@ def create_user_account(emailaddress):
 	except:
 		return None
 
+def create_user_origin(useraccountid,userprovided,origincityID,airportID):
+	c = conn.cursor()	
+	try:
+		c.execute('Insert Into userorigin(useraccountid, userprovided, origincityID, airportID) Values(\'{}\',{},{},{})'.format(useraccountid,userprovided,origincityID,airportID))
+		c.execute('Select * from userorigin where useraccountid = {} Order by created desc LIMIT 1'.format(useraccountid))
+		row = c.fetchone()
+		conn.commit()
+		return row[0]
+	except:
+		return None
+
 def qpx_search(jsonquery,apikey=qpxkey):
 	if api_limit_reached(apiID=1) == False:
 		headers = {'content-type': 'application/json'}
@@ -144,6 +155,12 @@ if __name__ == '__main__':
 		conn.commit()
 		create_user_account('pogster@gmail.com')
 
+	if table_exists('userorigin') == False:
+		#c.execute('Drop Table useraccount')
+		command = 'Create Table IF NOT EXISTS userorigin(origininstanceID INTEGER PRIMARY KEY, useraccountid VARCHAR(36), userprovided int, origincityID, airportID, created DATETIME DEFAULT (DATETIME(\'now\')))'
+		c.execute(command)
+		conn.commit()
+
 	############################################################################
 	#User Settings
 	#User must input emailaddress and up to 10 Origin + Destination cities to track
@@ -154,6 +171,8 @@ if __name__ == '__main__':
 	#3 - Hit IATA Country Endpoint, collect 'name'
 	#4 - Hit Google Geocode API with CityName, CountryName, collect Lat/Long
 	#5 - Hit IATA Nearby Endpoint using Lat/Long and 50mile distance for airport codes
+
+	#Exclude 'railway, heliport, AAF, AFB'
 
 	#We will use IATACodes API to lookup the airports in those cities + nearby airports with 50 miles. 
 	#http://iatacodes.org/api/VERSION/ENDPOINT?api_key=YOUR-API-KEY
