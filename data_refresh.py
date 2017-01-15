@@ -211,32 +211,32 @@ def iata_airport_refresh(apikey=iatakey, force=False):
             print str(r.status_code) + ' - ERROR!'
     return None
 
-
-############################################################################
+if __name__ == '__main__':
+ ############################################################################
 #DB Setup
-data_reset(reset=data_resetflag)
+    data_reset(reset=data_resetflag)
 
-c = conn.cursor()
-if table_exists('cities') == False:
-    command = 'Create Table IF NOT EXISTS cities(cityID INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT UNIQUE, code varchar(3), name varchar(100), country_code varchar(2), state varchar(100), lat Decimal(9,6), long Decimal(9,6), created DATETIME DEFAULT (DATETIME(\'now\')))'
-    c.execute(command)
-    command = 'CREATE UNIQUE INDEX IDX_cities ON cities (code ASC)'
-    c.execute(command)
-    conn.commit()
-    print 'Table cities Created!'
+    c = conn.cursor()
+    if table_exists('cities') == False:
+        command = 'Create Table IF NOT EXISTS cities(cityID INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT UNIQUE, code varchar(3), name varchar(100), country_code varchar(2), state varchar(100), lat Decimal(9,6), long Decimal(9,6), created DATETIME DEFAULT (DATETIME(\'now\')))'
+        c.execute(command)
+        command = 'CREATE UNIQUE INDEX IDX_cities ON cities (code ASC)'
+        c.execute(command)
+        conn.commit()
+        print 'Table cities Created!'
 
-    command = 'Create Table IF NOT EXISTS airports(airportID INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT UNIQUE, code varchar(3), name varchar(100), lat Decimal(9,6), long Decimal(9,6), created DATETIME DEFAULT (DATETIME(\'now\')))'
-    c.execute(command)
-    command = 'CREATE UNIQUE INDEX IDX_airports ON airports (code ASC)'
-    c.execute(command)
-    conn.commit()
-    print 'Table ariports Created!'
+        command = 'Create Table IF NOT EXISTS airports(airportID INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT UNIQUE, code varchar(3), name varchar(100), lat Decimal(9,6), long Decimal(9,6), created DATETIME DEFAULT (DATETIME(\'now\')))'
+        c.execute(command)
+        command = 'CREATE UNIQUE INDEX IDX_airports ON airports (code ASC)'
+        c.execute(command)
+        conn.commit()
+        print 'Table ariports Created!'
 
-############################################################################
+    ############################################################################
 
-iata_city_refresh(force=False)
-geocode_cities()
-iata_airport_refresh(force=False)
+    iata_city_refresh(force=False)
+    geocode_cities()
+    iata_airport_refresh(force=False)
 
 
 
