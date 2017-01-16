@@ -112,13 +112,30 @@ def create_user_route(useraccountid,o_or_d,userprovided,cityID,airportID):
     except:
         return None
 
-def nearby_airports(lat,lng,api_key=iatakey):
+def nearby_airports(citycode,distance=150,apikey=iatakey):
     #IATA Nearby Lookup
-    headers = {'content-type': 'application/json'}
-    url = 'http://iatacodes.org/api/v6/nearby?lat={}&lng={}&api_key={}'.format(lat,lng,apikey)
     c = conn.cursor()
-    return None
+    airports = []
+    c.execute('Select cityID, lat, long from cities where code = \'{}\''.format(citycode))
+    row = c.fetchone()
+    cityid = row[0]
+    lat = row[1]
+    lng = row[2] 
+    headers = {'content-type': 'application/json'}
+    url = 'http://iatacodes.org/api/v6/nearby?lat={}&lng={}&distance={}&api_key={}'.format(lat,lng,distance,apikey)
+    r = requests.post(url, headers=headers)
+    if r.status_code == 200:
+        response = r.json()
+        for r in response['response']:
+            c.execute('Select * from airports where notairport IS NULL and code = \'{}\''.format(r['code']))
+            row = c.fetchone()
+            if row != None:
+                airports.append(row[0])
+        return cityid, airports
 
+    else: 
+        print str(r.status_code) + ' - ERROR!'
+        return None
 
 
 def qpx_search(jsonquery,apikey=qpxkey):
@@ -375,6 +392,11 @@ if __name__ == '__main__':
     print type(x)
     print x['kind']
     '''
+
+    cityid, airports = nearby_airports(citycode='PHL')
+
+    print cityid 
+    print airports
 
 
     conn.close
