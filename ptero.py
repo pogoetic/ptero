@@ -92,8 +92,7 @@ def create_user_account(emailaddress):
     except:
         return None
 
-def create_user_route(useraccountid,o_or_d,userprovided,cityID,airportID):
-    c = conn.cursor()   
+def create_user_route(useraccountid,o_or_d,cityID,airportID):
     if o_or_d == 'o':
         table = 'userorigin'
         col = 'origincityid'
@@ -104,13 +103,15 @@ def create_user_route(useraccountid,o_or_d,userprovided,cityID,airportID):
         return None
 
     try:
-        c.execute('Insert Into {}(useraccountid, userprovided, {}, airportID) Values(\'{}\',{},{},{})'.format(table,col,useraccountid,userprovided,origincityID,airportID))
-        c.execute('Select * from {} where useraccountid = {} Order by created desc LIMIT 1'.format(table, useraccountid))
-        row = c.fetchone()
+        c = conn.cursor()   
+        c.execute('Insert Into {}(useraccountid, {}, airportID) Values(\'{}\',{},{})'.format(table,col,useraccountid,cityID,airportID))
         conn.commit()
+        c.execute('Select origininstanceID from {} where useraccountid = \'{}\' Order by created desc LIMIT 1'.format(table, useraccountid))
+        row = c.fetchone()
         return row[0]
-    except:
-        return None
+
+    except sqlite3.Error as er:
+        print 'er:', er.message
 
 def nearby_airports(citycode,distance=150,apikey=iatakey):
     #IATA Nearby Lookup
@@ -127,6 +128,7 @@ def nearby_airports(citycode,distance=150,apikey=iatakey):
     if r.status_code == 200:
         response = r.json()
         for r in response['response']:
+            #We filter on notairport IS NULL to ignore records that are not airports
             c.execute('Select * from airports where notairport IS NULL and code = \'{}\''.format(r['code']))
             row = c.fetchone()
             if row != None:
@@ -174,7 +176,7 @@ if __name__ == '__main__':
     if table_exists('apihistory') == False:
         #c.execute('Drop Table apihistory') 
         c.execute('Create Table IF NOT EXISTS apihistory(apiID int, date date, numcalls int)')
-        c.execute('CREATE UNIQUE INDEX {ix} on {tn}({cn},{cn2})'.format(ix='idx1', tn='apihistory', cn='apiID', cn2='date'))
+        c.execute('CREATE UNIQUE INDEX {ix} on {tn}({cn},{cn2})'.format(ix='IDX_apihistory', tn='apihistory', cn='apiID', cn2='date'))
         conn.commit()
 
     if table_exists('qbxresponse') == False:
@@ -191,12 +193,14 @@ if __name__ == '__main__':
         create_user_account('pogster@gmail.com')
 
     if table_exists('userorigin') == False:
-        command = 'Create Table IF NOT EXISTS userorigin(origininstanceID INTEGER PRIMARY KEY, useraccountid VARCHAR(36), userprovided int, origincityID, airportID, created DATETIME DEFAULT (DATETIME(\'now\')))'
+        command = 'Create Table IF NOT EXISTS userorigin(origininstanceID INTEGER PRIMARY KEY, useraccountid VARCHAR(36), origincityID, airportID, created DATETIME DEFAULT (DATETIME(\'now\')))'
+        c.execute(command)
+        command = 'CREATE UNIQUE INDEX {ix} on {tn}({cn},{cn2},{cn3})'.format(ix='IDX_userorigin', tn='userorigin', cn='useraccountid', cn2='origincityID', cn3='airportID')
         c.execute(command)
         conn.commit()
 
     if table_exists('userdestination') == False:
-        command = 'Create Table IF NOT EXISTS userdestination(destinationinstanceID INTEGER PRIMARY KEY, useraccountid VARCHAR(36), userprovided int, destinationcityID, airportID, created DATETIME DEFAULT (DATETIME(\'now\')))'
+        command = 'Create Table IF NOT EXISTS userdestination(destinationinstanceID INTEGER PRIMARY KEY, useraccountid VARCHAR(36), destinationcityID, airportID, created DATETIME DEFAULT (DATETIME(\'now\')))'
         c.execute(command)
         conn.commit()
 
@@ -395,9 +399,9 @@ if __name__ == '__main__':
 
     cityid, airports = nearby_airports(citycode='PHL')
 
-    print cityid 
-    print airports
-
+    for a in airports:
+        create_user_route(useraccountid='9e6b6207-31a3-481e-b5e3-5754fdcd222a',o_or_d='o',cityID=cityid,airportID=a)
+        
 
     conn.close
 
