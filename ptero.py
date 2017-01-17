@@ -111,9 +111,10 @@ def create_user_route(useraccountid,o_or_d,cityID,airportID):
         return row[0]
 
     except sqlite3.Error as er:
-        print 'er:', er.message
+        #print 'er:', er.message
+        return 'er:', er.message
 
-def nearby_airports(citycode,distance=150,apikey=iatakey):
+def nearby_airports(citycode,distance=150,primaryairports=1,apikey=iatakey):
     #IATA Nearby Lookup
     c = conn.cursor()
     airports = []
@@ -129,7 +130,7 @@ def nearby_airports(citycode,distance=150,apikey=iatakey):
         response = r.json()
         for r in response['response']:
             #We filter on notairport IS NULL to ignore records that are not airports
-            c.execute('Select * from airports where notairport IS NULL and code = \'{}\''.format(r['code']))
+            c.execute('Select * from airports where notairport IS NULL and [primary] = {} and code = \'{}\''.format(primaryairports,r['code']))
             row = c.fetchone()
             if row != None:
                 airports.append(row[0])
@@ -206,26 +207,21 @@ if __name__ == '__main__':
 
     ############################################################################
     #User Settings
-    #User must input emailaddress and up to 10 Origin + Destination cities to track
 
-
-    #1 - Get City Name from User (will want to pre-populate city names in the future from full list of IATA cities)
-    #2 - Hit IATA Cities Endpoint, collect 'country_code'
-    #3 - Hit Google Geocode API with CityName, CountryName, collect Lat/Long
-    #4 - Hit IATA Nearby Endpoint using Lat/Long and 50mile distance for airport codes
-
-    #We will use IATACodes API to lookup the airports in those cities + nearby airports with 50 miles. 
-    #http://iatacodes.org/api/VERSION/ENDPOINT?api_key=YOUR-API-KEY
-    # To find airports and cities by query string you have to send this API request https://iatacodes.org/api/v6/autocomplete?query=madrid.
-    # To find nearest airports by latitude/longitude and distance you have to send this API request http://iatacodes.org/api/v6/nearby?lat=-6.1744&lng=106.8294&distance=1000.
-    # To get data by all timezones you have to send this API request https://iatacodes.org/api/v6/timezones.
-
+    #User must input emailaddress and up to 1 Origin + 10 Destination cities to track
     #We will use Google Maps Geocode API to geocode a city to get Lat/Long
-    #https://developers.google.com/maps/documentation/geocoding/intro
-    #https://maps.googleapis.com/maps/api/geocode/json?address=1600+Amphitheatre+Parkway,+Mountain+View,+CA&key=YOUR_API_KEY
+    #We will use IATACodes Naerby API to lookup the airports in those cities + nearby airports with 150 miles. 
 
-
-
+    #create origins (must somehow enforce 1 per user at the beginning)
+    cityid, airports = nearby_airports(citycode='PHL')
+    for a in airports:
+        create_user_route(useraccountid='9e6b6207-31a3-481e-b5e3-5754fdcd222a',o_or_d='o',cityID=cityid,airportID=a)
+    
+    #create destinations
+    cityid, airports = nearby_airports(citycode='REK')
+    for a in airports:
+        create_user_route(useraccountid='9e6b6207-31a3-481e-b5e3-5754fdcd222a',o_or_d='d',cityID=cityid,airportID=a)
+    
 
     ############################################################################
 
@@ -295,7 +291,7 @@ if __name__ == '__main__':
     '''
 
     print '\n'
-    print json.dumps(jsonbody)
+    print json.dumps(jsonbody, indent=4)
     parsedjson = json.loads(json.dumps(jsonbody))
     #print parsedjson
     #print parsedjson['request']['slice'][0]['origin']
@@ -327,7 +323,7 @@ if __name__ == '__main__':
         #Grab the actual response in the future rather than querying DB
     c.execute('Select rawresponse from qbxresponse where substr(created,0,11) = date(\'now\') order by created desc')
     row = c.fetchone()
-    print row
+    print json.dumps(json.loads(row[0]),indent=4)
     r = json.loads(row[0])
     print 'requestId: ' + r['trips']['requestId'] +'\n'
 
@@ -397,11 +393,6 @@ if __name__ == '__main__':
     print x['kind']
     '''
 
-    cityid, airports = nearby_airports(citycode='PHL')
-
-    for a in airports:
-        create_user_route(useraccountid='9e6b6207-31a3-481e-b5e3-5754fdcd222a',o_or_d='o',cityID=cityid,airportID=a)
-        
 
     conn.close
 
