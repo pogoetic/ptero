@@ -203,6 +203,8 @@ if __name__ == '__main__':
     if table_exists('userdestination') == False:
         command = 'Create Table IF NOT EXISTS userdestination(destinationinstanceID INTEGER PRIMARY KEY, useraccountid VARCHAR(36), destinationcityID, airportID, created DATETIME DEFAULT (DATETIME(\'now\')))'
         c.execute(command)
+        command = 'CREATE UNIQUE INDEX {ix} on {tn}({cn},{cn2},{cn3})'.format(ix='IDX_userdestination', tn='userdestination', cn='useraccountid', cn2='destinationcityID', cn3='airportID')
+        c.execute(command)
         conn.commit()
 
     ############################################################################
