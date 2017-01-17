@@ -224,6 +224,11 @@ if __name__ == '__main__':
     for a in airports:
         create_user_route(useraccountid='9e6b6207-31a3-481e-b5e3-5754fdcd222a',o_or_d='d',cityID=cityid,airportID=a)
     
+    query = ('Select a1.code as origincode, a2.code as destinationcode, uo.useraccountID '
+             'from userorigin uo '
+             'join userdestination ud on ud.useraccountid = uo.useraccountid '
+             'left join airports a1 on a1.airportID = uo.airportID '
+             'left join airports a2 on a2.airportID = ud.airportID ')
 
     ############################################################################
 
@@ -293,10 +298,8 @@ if __name__ == '__main__':
     '''
 
     print '\n'
-    print json.dumps(jsonbody, indent=4)
+    #print json.dumps(jsonbody, indent=4)
     parsedjson = json.loads(json.dumps(jsonbody))
-    #print parsedjson
-    #print parsedjson['request']['slice'][0]['origin']
 
     ############################################################################
     #QPX Calls
@@ -325,68 +328,100 @@ if __name__ == '__main__':
         #Grab the actual response in the future rather than querying DB
     c.execute('Select rawresponse from qbxresponse where substr(created,0,11) = date(\'now\') order by created desc')
     row = c.fetchone()
-    print json.dumps(json.loads(row[0]),indent=4)
+    #print json.dumps(json.loads(row[0]),indent=4)
     r = json.loads(row[0])
-    print 'requestId: ' + r['trips']['requestId'] +'\n'
+    requestID = r['trips']['requestId']
 
     x=0
     for to in r['trips']['tripOption']:
-        print 'tripOption {}: '.format(x)
-        print 'price: ' + to['saleTotal'][3:]
-        print 'currency: ' + to['saleTotal'][:3]
-
-        print 'tripOptionId: ' + to['id']
-        print 'total flight duration: ' + str(to['slice'][0]['duration'])
-
-        print 'segmentId: ' + to['slice'][0]['segment'][0]['id']
-        print 'segment carrier: ' + str(to['slice'][0]['segment'][0]['flight']['carrier'])
-        print 'segment flight number: ' + str(to['slice'][0]['segment'][0]['flight']['number'])
-        print 'cabin: ' + to['slice'][0]['segment'][0]['cabin']
-        print 'bookingCode: ' + to['slice'][0]['segment'][0]['bookingCode']
-        print 'bookingCodeCount: ' + str(to['slice'][0]['segment'][0]['bookingCodeCount'])
-        print 'marriedSegmentGroup: ' + to['slice'][0]['segment'][0]['marriedSegmentGroup']
+        tripoption = str(x)
+        price = to['saleTotal'][3:]
+        currency = to['saleTotal'][:3]
+        tripoptionID = to['id']
+        total_flight_duration = str(to['slice'][0]['duration'])
+        segmentID = to['slice'][0]['segment'][0]['id']
+        segment_carrier = str(to['slice'][0]['segment'][0]['flight']['carrier'])
+        segment_flight_number = str(to['slice'][0]['segment'][0]['flight']['number'])
+        cabin = to['slice'][0]['segment'][0]['cabin']
+        bookingcode = to['slice'][0]['segment'][0]['bookingCode']
+        bookingcodecount = str(to['slice'][0]['segment'][0]['bookingCodeCount'])
+        marriedsegmentgroup = to['slice'][0]['segment'][0]['marriedSegmentGroup']
 
         for l in to['slice'][0]['segment'][0]['leg']:
-            print 'legId: ' + l['id']
-            print 'aircraft: ' + l['aircraft']
-            print 'arrivaltime: ' + l['arrivalTime']
-            print 'departuretime: ' + l['departureTime']
-            print 'origin: ' + l['origin']
-            print 'destination: ' + l['destination']
-            print 'duration: ' + str(l['duration'])
-            print 'mileage: ' + str(l['mileage'])
+            legID = l['id']
+            aircraft = l['aircraft']
+            arrivaltime = l['arrivalTime']
+            departuretime = l['departureTime']
+            origin = l['origin']
+            destination = l['destination']
+            duration = str(l['duration'])
+            mileage = str(l['mileage'])
 
-        print 'fareId: ' + to['pricing'][0]['fare'][0]['id']
-        print 'fare basisCode: ' + to['pricing'][0]['fare'][0]['basisCode']
+        fareID = to['pricing'][0]['fare'][0]['id']
+        farebasiscode = to['pricing'][0]['fare'][0]['basisCode']
+
         for p in to['pricing']:
             try:
-                print 'adultCount: ' + str(p['passengers']['adultCount'])
+                adultcount = str(p['passengers']['adultCount'])
             except:
+                adultcount = str(0)
                 pass
             try:
-                print 'seniorCount: ' + str(p['passengers']['seniorCount'])
+                seniorcount = str(p['passengers']['seniorCount'])
             except:
+                seniorcount = str(0)
                 pass
             try:
-                print 'childCount: ' + str(p['passengers']['childCount'])
+                childcount = str(p['passengers']['childCount'])
             except:
+                childcount = str(0)
                 pass
             try:
-                print 'infantInSeatCount: ' + str(p['passengers']['infantInSeatCount'])
+                infantinseatcount = str(p['passengers']['infantInSeatCount'])
             except:
+                infantinseatcount = str(0)
                 pass
             try:
-                print 'infantInLapCount: ' + str(p['passengers']['infantInLapCount'])
+                infantinlapcount = str(p['passengers']['infantInLapCount'])
             except:
+                infantinlapcount = str(0)
                 pass
-            #print 'baseFareTotal: ' + p['baseFareTotal'][3:]
-            #print 'saleTaxTotal: ' + p['saleTaxTotal'][3:]
-            #print 'saleTotal: ' + p['saleTotal'][3:]
-        print 'latestTicketingTime: ' +to['pricing'][0]['latestTicketingTime']
+
+        latestticketingtime = to['pricing'][0]['latestTicketingTime']
 
         print '\n'
-        x=x+1
+        x+=1
 
+
+        print 'requestId: ' +requestID 
+        print 'fareId: ' +fareID
+        print 'fare basisCode: ' +farebasiscode
+        print 'tripOption: '+tripoption
+        print 'price: ' +price
+        print 'currency: ' +currency
+        print 'tripOptionId: ' +tripoptionID
+        print 'total flight duration: ' +total_flight_duration
+        print 'segmentId: ' +segmentID
+        print 'segment carrier: ' +segment_carrier
+        print 'segment flight number: ' +segment_flight_number
+        print 'cabin: ' +cabin
+        print 'bookingCode: ' +bookingcode
+        print 'bookingCodeCount: ' +bookingcodecount
+        print 'marriedSegmentGroup: ' +marriedsegmentgroup
+        print 'legId: ' +legID
+        print 'aircraft: ' +aircraft
+        print 'arrivaltime: ' +arrivaltime
+        print 'departuretime: ' +departuretime
+        print 'origin: ' +origin
+        print 'destination: ' +destination
+        print 'duration: ' +duration
+        print 'mileage: ' +mileage
+        print 'adultCount: ' + adultcount
+        print 'seniorCount: ' + seniorcount
+        print 'childCount: ' +childcount
+        print 'infantInSeatCount: ' +infantinseatcount
+        print 'infantInLapCount: ' + infantinlapcount
+        print 'latestTicketingTime: ' +latestticketingtime
 
     '''
     #Parsing JSON from Response directly

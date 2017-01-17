@@ -234,6 +234,11 @@ if __name__ == '__main__':
 
     ############################################################################
 
+    #1 - Get City Name from User (will want to pre-populate city names in the future from full list of IATA cities)
+    #2 - Hit IATA Cities Endpoint, collect 'country_code' as well
+    #3 - Hit Google Geocode API with CityName, CountryName, collect Lat/Long
+    #4 - Hit IATA airport API
+
     iata_city_refresh(force=False)
     geocode_cities()
     iata_airport_refresh(force=False)
