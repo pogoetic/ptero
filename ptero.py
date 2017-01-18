@@ -71,10 +71,28 @@ def api_limit_reached(apiID):
     else: 
         return False
 
-def update_qpx_response(rawresponse):
+def update_qpx_response(rawresponse,parsedresponse=None):
     c = conn.cursor()   
     #command = "Insert Into qpxresponse(rawresponse) values(\'{}\');".format(rawresponse)
-    c.execute("Insert Into qpxresponse(rawresponse) values(?)",(rawresponse,))
+    if parsedresponse != None:
+        c.execute("Insert Into qpxresponse(rawresponse,requestID,fareID,farebasiscode,"
+                  "tripoption,price,currency,tripoptionID,totalflightduration,segmentID,segmentcarrier,"
+                  "segmentflightnumber,cabin,bookingcode,bookingcodecount,marriedsegmentgroup,legID,aircraft,"
+                  "arrivaltime,arrivaltimeutcoffset,departuretime,departuretimeutcoffset,origin,destination,"
+                  "duration,mileage,adultcount,seniorcount,childcount,infantinseatcount,infantinlapcount,"
+                  "latestticketingtime) values(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                  (rawresponse,parsedresponse['requestID'],parsedresponse['fareID'],parsedresponse['farebasiscode'],
+                   parsedresponse['tripoption'],parsedresponse['price'],parsedresponse['currency'],parsedresponse['tripoptionID'],
+                   parsedresponse['totalflightduration'],parsedresponse['legID'],parsedresponse['aircraft'],
+                   parsedresponse['arrivaltime'],parsedresponse['arrivaltimeutcoffset'],
+                   parsedresponse['departuretime'],parsedresponse['departuretimeutcoffset'],
+                   parsedresponse['origin'],parsedresponse['destination'],parsedresponse['duration'],
+                   parsedresponse['mileage'],parsedresponse['adultcount'],parsedresponse['seniorcount'],
+                   parsedresponse['childcount'],parsedresponse['infantinseatcount'],parsedresponse['infantinlapcount'],
+                   parsedresponse['latestticketingtime']))
+    else:
+        c.execute("insert into qpxresponse(rawresponse) values(?)",(rawresponse,))
+
     conn.commit()
     command = 'Select * from qpxresponse order by queryid desc LIMIT 1'
     c.execute(command)
@@ -393,44 +411,47 @@ if __name__ == '__main__':
         print '\n'
         x+=1
 
-        print 'requestId: ' +requestID 
-        print 'fareId: ' +fareID
-        print 'fare basisCode: ' +farebasiscode
-        print 'tripOption: '+tripoption
-        print 'price: ' +price
-        print 'currency: ' +currency
-        print 'tripOptionId: ' +tripoptionID
-        print 'total flight duration: ' +total_flight_duration
-        print 'segmentId: ' +segmentID
-        print 'segment carrier: ' +segment_carrier
-        print 'segment flight number: ' +segment_flight_number
-        print 'cabin: ' +cabin
-        print 'bookingCode: ' +bookingcode
-        print 'bookingCodeCount: ' +bookingcodecount
-        print 'marriedSegmentGroup: ' +marriedsegmentgroup
-        print 'legId: ' +legID
-        print 'aircraft: ' +aircraft
-        print 'arrivaltime: ' +arrivaltime
-        print 'departuretime: ' +departuretime
-        print 'origin: ' +origin
-        print 'destination: ' +destination
-        print 'duration: ' +duration
-        print 'mileage: ' +mileage
-        print 'adultCount: ' + adultcount
-        print 'seniorCount: ' + seniorcount
-        print 'childCount: ' +childcount
-        print 'infantInSeatCount: ' +infantinseatcount
-        print 'infantInLapCount: ' + infantinlapcount
-        d = dateutil.parser.parse(latestticketingtime)
-        print 'latestTicketingTime: ' +d.strftime('%Y-%m-%d %X')
+        d1 = dateutil.parser.parse(arrivaltime)
+        d2 = dateutil.parser.parse(departuretime)
+        d3 = dateutil.parser.parse(latestticketingtime)
 
-    '''
-    #Parsing JSON from Response directly
-    x = json.loads(response)
-    print type(x)
-    print x['kind']
-    '''
+        parsedresponse = {'requestID':requestID,
+                          'fareID':fareID,
+                          'farebasiscode':farebasiscode,
+                          'tripoption':tripoption,
+                          'price':price,
+                          'currency':currency,
+                          'tripoptionID':tripoptionID,
+                          'totalflightduration':total_flight_duration,
+                          'segmentID':segmentID,
+                          'segmentcarrier':segment_carrier,
+                          'segmentflightnumber':segment_flight_number,
+                          'cabin':cabin,
+                          'bookingcode':bookingcode,
+                          'bookingcodecount':bookingcodecount,
+                          'marriedsegmentgroup':marriedsegmentgroup,
+                          'legID':legID,
+                          'aircraft':aircraft,
+                          'arrivaltime':d1.strftime('%Y-%m-%d %X'),
+                          'arrivaltimeutcoffset':d1.strftime('%z'),
+                          'departuretime':d2.strftime('%Y-%m-%d %X'),
+                          'departuretimeutcoffset':d2.strftime('%z'),
+                          'origin':origin,
+                          'destination':destination,
+                          'duration':duration,
+                          'mileage':mileage,
+                          'adultcount':adultcount,
+                          'seniorcount':seniorcount,
+                          'childcount':childcount,
+                          'infantinseatcount':infantinseatcount,
+                          'infantinlapcount':infantinlapcount,
+                          'latestticketingtime':d3.strftime('%Y-%m-%d %X')
+                          }
 
+        for i in parsedresponse:
+            print str(i) + ': ' + str(parsedresponse[i])
+            
+#Need to grab ALL legs(do we have the right datamodel in qpxresponse table?)
 
     conn.close
 
