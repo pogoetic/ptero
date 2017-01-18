@@ -1,5 +1,6 @@
 
 import requests, sqlite3, json, ConfigParser, uuid
+import datetime, dateutil.parser
 
 #Keys
 config = ConfigParser.RawConfigParser(allow_no_value=True)
@@ -420,7 +421,8 @@ if __name__ == '__main__':
         print 'childCount: ' +childcount
         print 'infantInSeatCount: ' +infantinseatcount
         print 'infantInLapCount: ' + infantinlapcount
-        print 'latestTicketingTime: ' +latestticketingtime
+        d = dateutil.parser.parse(latestticketingtime)
+        print 'latestTicketingTime: ' +d.strftime('%Y-%m-%d %X')
 
     '''
     #Parsing JSON from Response directly
