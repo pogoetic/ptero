@@ -25,7 +25,7 @@ def table_exists(tablename):
 def data_reset(reset=False):
     if reset == True:
         c = conn.cursor()
-        table = ['apilimit','apihistory','qbxresponse','useraccount']
+        table = ['apilimit','apihistory','qpxresponse','useraccount']
         for t in table:
             if table_exists(t) == True:
                 print 'Dropping Table {}'.format(t)
@@ -70,12 +70,12 @@ def api_limit_reached(apiID):
     else: 
         return False
 
-def update_qbx_response(rawresponse):
+def update_qpx_response(rawresponse):
     c = conn.cursor()   
-    #command = "Insert Into qbxresponse(rawresponse) values(\'{}\');".format(rawresponse)
-    c.execute("Insert Into qbxresponse(rawresponse) values(?)",(rawresponse,))
+    #command = "Insert Into qpxresponse(rawresponse) values(\'{}\');".format(rawresponse)
+    c.execute("Insert Into qpxresponse(rawresponse) values(?)",(rawresponse,))
     conn.commit()
-    command = 'Select * from qbxresponse order by queryid desc LIMIT 1'
+    command = 'Select * from qpxresponse order by queryid desc LIMIT 1'
     c.execute(command)
     row = c.fetchone()
     return row[0]
@@ -149,7 +149,7 @@ def qpx_search(jsonquery,apikey=qpxkey):
         if r.status_code == 200:
             print str(r.status_code) +' - Success!'
             update_api_history(apiID=1,numcalls=1)
-            update_qbx_response(r.text)
+            update_qpx_response(r.text)
             return r.json()
         else: 
             print str(r.status_code) + ' - Failure!'
@@ -180,9 +180,9 @@ if __name__ == '__main__':
         c.execute('CREATE UNIQUE INDEX {ix} on {tn}({cn},{cn2})'.format(ix='IDX_apihistory', tn='apihistory', cn='apiID', cn2='date'))
         conn.commit()
 
-    if table_exists('qbxresponse') == False:
-        #c.execute('Drop Table qbxresponse')
-        command = 'Create Table IF NOT EXISTS qbxresponse(queryid INTEGER PRIMARY KEY, rawresponse BLOB, created DATETIME DEFAULT (DATETIME(\'now\')))'
+    if table_exists('qpxresponse') == False:
+        #c.execute('Drop Table qpxresponse')
+        command = 'Create Table IF NOT EXISTS qpxresponse(queryid INTEGER PRIMARY KEY, rawresponse BLOB, created DATETIME DEFAULT (DATETIME(\'now\')))'
         c.execute(command)
         conn.commit()
 
@@ -319,14 +319,14 @@ if __name__ == '__main__':
     print '\n'
 
 
-    #c.execute('Select * from qbxresponse where substr(created,0,11) = date(\'now\')')
+    #c.execute('Select * from qpxresponse where substr(created,0,11) = date(\'now\')')
     #rows = c.fetchall()
     #for row in rows:
     #   print '\n'+ str(row) +'\n'
 
-    #Parse QBX Response
+    #Parse qpx Response
         #Grab the actual response in the future rather than querying DB
-    c.execute('Select rawresponse from qbxresponse where substr(created,0,11) = date(\'now\') order by created desc')
+    c.execute('Select rawresponse from qpxresponse where substr(created,0,11) = date(\'now\') order by created desc')
     row = c.fetchone()
     #print json.dumps(json.loads(row[0]),indent=4)
     r = json.loads(row[0])
@@ -391,7 +391,6 @@ if __name__ == '__main__':
 
         print '\n'
         x+=1
-
 
         print 'requestId: ' +requestID 
         print 'fareId: ' +fareID

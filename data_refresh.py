@@ -42,10 +42,13 @@ def iata_refresh(table, apikey=iatakey, force=False):
     #IATA Airline DB
     if table == 'airports':
         id_col = 'airportID'
+        apiID = 4
     elif table == 'airlines':
         id_col = 'airlineID'
+        apiID = 3
     elif table == 'cities':
         id_col = 'cityID'
+        apiID = 5
 
     headers = {'content-type': 'application/json'}
     url = ' https://iatacodes.org/api/v6/{}?api_key={}'.format(table,apikey)
@@ -76,6 +79,7 @@ def iata_refresh(table, apikey=iatakey, force=False):
                             c.execute('Insert Into {}(code, name) values(?,?)'.format(table),(i['code'],i['name']))
                             count = count+1
                 conn.commit()
+                update_api_history(apiID=apiID,numcalls=count)
                 print 'iata_{}_refresh - '.format(table)+ str(r.status_code) +' - Success - '+str(count)+' updated!'
             else: 
                 print str(r.status_code) + ' - ERROR!'
@@ -99,6 +103,7 @@ def iata_refresh(table, apikey=iatakey, force=False):
                         c.execute('Insert Into {}(code, name) values(?,?)'.format(table),(i['code'],i['name']))
                         count = count+1
             conn.commit()   
+            update_api_history(apiID=apiID,numcalls=count)
             print 'iata_{}_refresh - '.format(table)+ str(r.status_code) +' - Success - '+str(count)+' updated!'
         else: 
             print str(r.status_code) + ' - ERROR!'
