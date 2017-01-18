@@ -37,15 +37,23 @@ def table_exists(tablename):
     else:
         return False
 
-def iata_city_refresh(apikey=iatakey, force=False):
-    #IATA Cities DB
+
+def iata_refresh(table, apikey=iatakey, force=False):
+    #IATA Airline DB
+    if table == 'airports':
+        id_col = 'airportID'
+    elif table == 'airlines':
+        id_col = 'airlineID'
+    elif table == 'cities':
+        id_col = 'cityID'
+
     headers = {'content-type': 'application/json'}
-    url = 'https://iatacodes.org/api/v6/cities?api_key={}'.format(apikey)
+    url = ' https://iatacodes.org/api/v6/{}?api_key={}'.format(table,apikey)
     c = conn.cursor()
-    c.execute('Select count(*) from cities')
+    c.execute('Select count(*) from {}'.format(table))
     numrows = c.fetchone()
     if numrows[0] != 0:
-        c.execute('Select max(created) from cities')
+        c.execute('Select max(created) from {}'.format(table))
         maxdate = c.fetchone()
         maxdate = parse(maxdate[0])
         if force == True:
@@ -53,27 +61,28 @@ def iata_city_refresh(apikey=iatakey, force=False):
         else: 
             comparedate = maxdate+relativedelta(weeks=+1) #or (months=+1)
         today = datetime.datetime.utcnow()  
-        if today > comparedate:
+        if today > comparedate:   
             r = requests.post(url, headers=headers) #API Call and refill table data
             if r.status_code == 200:
                 response = r.json()
                 c = conn.cursor()
                 count = 0
                 for i in response['response']:
-                    c.execute("Select * from cities where code = '{}'".format(i['code']))
-                    row = c.fetchone() 
-                    if row[0] == None: #Only insert new rows
-                        #print 'inserting {}, {}, {}'.format(i['code'],i['name'].encode('utf-8'),i['country_code'])
-                        c.execute('Insert Into cities(code, name, country_code) values(?,?,?)',(i['code'],i['name'],i['country_code']))
-                        count = count+1
+                    c.execute("Select code from {} where code = \'{}\'".format(table,i['code']))
+                    if c.fetchone() == None: #Only insert new rows
+                        if table == 'cities':
+                            c.execute('Insert Into {}(code, name, country_code) values(?,?,?)'.format(table),(i['code'],i['name'],i['country_code']))
+                        else: 
+                            c.execute('Insert Into {}(code, name) values(?,?)'.format(table),(i['code'],i['name']))
+                            count = count+1
                 conn.commit()
-                print 'iata_cities_refresh - '+ str(r.status_code) +' - Success - '+str(count)+' updated!'
+                print 'iata_{}_refresh - '.format(table)+ str(r.status_code) +' - Success - '+str(count)+' updated!'
             else: 
                 print str(r.status_code) + ' - ERROR!'
         else: # we update one date so our check run logic holds
-            c.execute('Update cities set created = DATETIME(\'now\') where cityID = 1')
+            c.execute('Update {} set created = DATETIME(\'now\') where {} = 1'.format(table,id_col))
             conn.commit()
-            print 'IATA cities -> its not time for an update yet'
+            print 'IATA {} -> its not time for an update yet'.format(table)
     else: 
         r = requests.post(url, headers=headers) #API Call and refill table data
         if r.status_code == 200:
@@ -81,11 +90,16 @@ def iata_city_refresh(apikey=iatakey, force=False):
             c = conn.cursor()
             count = 0
             for i in response['response']:
-                c.execute('Insert Into cities(code, name, country_code) values(?,?,?)',(i['code'],i['name'],i['country_code']))
-                count = count+1
-
+                #need to remove dupes before insert:
+                c.execute("Select code from {} where code = \'{}\'".format(table,i['code']))
+                if c.fetchone() == None:
+                    if table == 'cities':
+                        c.execute('Insert Into {}(code, name, country_code) values(?,?,?)'.format(table),(i['code'],i['name'],i['country_code']))
+                    else: 
+                        c.execute('Insert Into {}(code, name) values(?,?)'.format(table),(i['code'],i['name']))
+                        count = count+1
             conn.commit()   
-            print 'iata_cities_refresh - '+ str(r.status_code) +' - Success - '+str(count)+' updated!'
+            print 'iata_{}_refresh - '.format(table)+ str(r.status_code) +' - Success - '+str(count)+' updated!'
         else: 
             print str(r.status_code) + ' - ERROR!'
     return None
@@ -158,59 +172,6 @@ def geocode_cities():
             break 
     print 'Google Geocode -> {} rows geocoded!'.format(count)
 
-def iata_airport_refresh(apikey=iatakey, force=False):
-    #IATA Airport DB
-    headers = {'content-type': 'application/json'}
-    url = ' https://iatacodes.org/api/v6/airports?api_key={}'.format(apikey)
-    c = conn.cursor()
-    c.execute('Select count(*) from airports')
-    numrows = c.fetchone()
-    if numrows[0] != 0:
-        c.execute('Select max(created) from airports')
-        maxdate = c.fetchone()
-        maxdate = parse(maxdate[0])
-        if force == True:
-            comparedate = maxdate+relativedelta(weeks=-1) #or (months=+1)
-        else: 
-            comparedate = maxdate+relativedelta(weeks=+1) #or (months=+1)
-        today = datetime.datetime.utcnow()  
-        if today > comparedate:
-            r = requests.post(url, headers=headers) #API Call and refill table data
-            if r.status_code == 200:
-                response = r.json()
-                c = conn.cursor()
-                count = 0
-                for i in response['response']:
-                    c.execute("Select * from airports where code = '{}'".format(i['code']))
-                    row = c.fetchone() 
-                    if row[0] == None: #Only insert new rows
-                        #print 'inserting {}, {}, {}'.format(i['code'],i['name'].encode('utf-8'),i['country_code'])
-                        c.execute('Insert Into airports(code, name) values(?,?)',(i['code'],i['name']))
-                        count = count+1
-                conn.commit()
-                print 'iata_airports_refresh - '+ str(r.status_code) +' - Success - '+str(count)+' updated!'
-            else: 
-                print str(r.status_code) + ' - ERROR!'
-        else: # we update one date so our check run logic holds
-            c.execute('Update airports set created = DATETIME(\'now\') where airportID = 1')
-            conn.commit()
-            print 'IATA airports -> its not time for an update yet'
-    else: 
-        r = requests.post(url, headers=headers) #API Call and refill table data
-        if r.status_code == 200:
-            response = r.json()
-            c = conn.cursor()
-            count = 0
-            for i in response['response']:
-                c.execute('Insert Into airports(code, name) values(?,?)',(i['code'],i['name']))
-                count = count+1
-
-            conn.commit()   
-            print 'iata_airport_refresh - '+ str(r.status_code) +' - Success - '+str(count)+' updated!'
-        else: 
-            print str(r.status_code) + ' - ERROR!'
-    return None
-
 if __name__ == '__main__':
  ############################################################################
 #DB Setup
@@ -232,6 +193,13 @@ if __name__ == '__main__':
         conn.commit()
         print 'Table ariports Created!'
 
+        command = 'Create Table IF NOT EXISTS airlines(airlineID INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT UNIQUE, code varchar(2), name varchar(100), created DATETIME DEFAULT (DATETIME(\'now\')))'
+        c.execute(command)
+        command = 'CREATE UNIQUE INDEX IDX_airlines ON airlines (code ASC)'
+        c.execute(command)
+        conn.commit()
+        print 'Table ariports Created!'
+
     ############################################################################
 
     #1 - Get City Name from User (will want to pre-populate city names in the future from full list of IATA cities)
@@ -239,9 +207,10 @@ if __name__ == '__main__':
     #3 - Hit Google Geocode API with CityName, CountryName, collect Lat/Long
     #4 - Hit IATA airport API
 
-    iata_city_refresh(force=False)
+    iata_refresh(table='cities', force=False)
     geocode_cities()
-    iata_airport_refresh(force=False)
+    iata_refresh(table='airports', force=False)
+    iata_refresh(table='airlines', force=False)
 
 
 
