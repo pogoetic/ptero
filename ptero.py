@@ -358,23 +358,45 @@ if __name__ == '__main__':
         currency = to['saleTotal'][:3]
         tripoptionID = to['id']
         total_flight_duration = str(to['slice'][0]['duration'])
-        segmentID = to['slice'][0]['segment'][0]['id']
-        segment_carrier = str(to['slice'][0]['segment'][0]['flight']['carrier'])
-        segment_flight_number = str(to['slice'][0]['segment'][0]['flight']['number'])
-        cabin = to['slice'][0]['segment'][0]['cabin']
-        bookingcode = to['slice'][0]['segment'][0]['bookingCode']
-        bookingcodecount = str(to['slice'][0]['segment'][0]['bookingCodeCount'])
-        marriedsegmentgroup = to['slice'][0]['segment'][0]['marriedSegmentGroup']
 
-        for l in to['slice'][0]['segment'][0]['leg']:
-            legID = l['id']
-            aircraft = l['aircraft']
-            arrivaltime = l['arrivalTime']
-            departuretime = l['departureTime']
-            origin = l['origin']
-            destination = l['destination']
-            duration = str(l['duration'])
-            mileage = str(l['mileage'])
+        segments = []
+        legs = []
+        for s in to['slice'][0]['segment']:
+            #We do legs first because we need leg duration to calc connectionduration in certain annoying instances
+            legdurationtotal = 0
+            for l in s['leg']:
+                d1 = dateutil.parser.parse(l['arrivalTime'])
+                d2 = dateutil.parser.parse(l['departureTime'])
+                legs.append({'segmentID':s['id'],
+                             'legID' : l['id'],
+                             'aircraft' : l['aircraft'],
+                             'arrivaltime' : d1.strftime('%Y-%m-%d %X'),
+                             'arrivaltimeutcoffset':d1.strftime('%z'),
+                             'departuretime':d2.strftime('%Y-%m-%d %X'),
+                             'departuretimeutcoffset':d2.strftime('%z'),
+                             'origin' : l['origin'],
+                             'destination' : l['destination'],
+                             'duration' : str(l['duration']),
+                             'mileage' : str(l['mileage'])})
+                legdurationtotal = legdurationtotal + l['duration']
+
+            connectionduration = None
+            try:
+                connectionduration = s['connectionDuration']
+            except:
+                connectionduration = to['slice'][0]['duration'] - legdurationtotal
+                pass
+            segments.append({'segmentID' : s['id'],
+                             'segmentcarrier' : str(s['flight']['carrier']),
+                             'segmentflightnumber' : str(s['flight']['number']),
+                             'cabin' : s['cabin'],
+                             'bookingcode' : s['bookingCode'],
+                             'bookingcodecount' : str(s['bookingCodeCount']),
+                             'marriedsegmentgroup' : s['marriedSegmentGroup'],
+                             'connectionduration' : connectionduration})
+            
+
+
 
         fareID = to['pricing'][0]['fare'][0]['id']
         farebasiscode = to['pricing'][0]['fare'][0]['basisCode']
@@ -382,37 +404,29 @@ if __name__ == '__main__':
         for p in to['pricing']:
             try:
                 adultcount = str(p['passengers']['adultCount'])
+                #print json.dumps(p, indent = 4)
+                #print adultcount
             except:
-                adultcount = str(0)
                 pass
             try:
                 seniorcount = str(p['passengers']['seniorCount'])
             except:
-                seniorcount = str(0)
                 pass
             try:
                 childcount = str(p['passengers']['childCount'])
             except:
-                childcount = str(0)
                 pass
             try:
                 infantinseatcount = str(p['passengers']['infantInSeatCount'])
             except:
-                infantinseatcount = str(0)
                 pass
             try:
                 infantinlapcount = str(p['passengers']['infantInLapCount'])
             except:
-                infantinlapcount = str(0)
                 pass
 
         latestticketingtime = to['pricing'][0]['latestTicketingTime']
 
-        print '\n'
-        x+=1
-
-        d1 = dateutil.parser.parse(arrivaltime)
-        d2 = dateutil.parser.parse(departuretime)
         d3 = dateutil.parser.parse(latestticketingtime)
 
         parsedresponse = {'requestID':requestID,
@@ -423,36 +437,37 @@ if __name__ == '__main__':
                           'currency':currency,
                           'tripoptionID':tripoptionID,
                           'totalflightduration':total_flight_duration,
-                          'segmentID':segmentID,
-                          'segmentcarrier':segment_carrier,
-                          'segmentflightnumber':segment_flight_number,
-                          'cabin':cabin,
-                          'bookingcode':bookingcode,
-                          'bookingcodecount':bookingcodecount,
-                          'marriedsegmentgroup':marriedsegmentgroup,
-                          'legID':legID,
-                          'aircraft':aircraft,
-                          'arrivaltime':d1.strftime('%Y-%m-%d %X'),
-                          'arrivaltimeutcoffset':d1.strftime('%z'),
-                          'departuretime':d2.strftime('%Y-%m-%d %X'),
-                          'departuretimeutcoffset':d2.strftime('%z'),
-                          'origin':origin,
-                          'destination':destination,
-                          'duration':duration,
-                          'mileage':mileage,
+                          
                           'adultcount':adultcount,
                           'seniorcount':seniorcount,
                           'childcount':childcount,
                           'infantinseatcount':infantinseatcount,
                           'infantinlapcount':infantinlapcount,
                           'latestticketingtime':d3.strftime('%Y-%m-%d %X')
-                          }
+                          }                      
+
+        print '\n'
+        x+=1
 
         for i in parsedresponse:
             print str(i) + ': ' + str(parsedresponse[i])
-            
+
+        for si in segments:
+            print '\n'
+            print 'SEGMENTS: '
+            for sii in si:
+                print str(sii) + ': ' + str(si[sii])
+
+        for l in legs:
+            print '\n'
+            print 'LEGS: '
+            for li in l:
+                print str(li) + ': ' + str(l[li])
+
+
 #Need to grab ALL legs(do we have the right datamodel in qpxresponse table?)
 
+    print '\n'
     conn.close
 
     exit()
