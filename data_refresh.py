@@ -83,9 +83,11 @@ def iata_refresh(table, apikey=iatakey, force=False):
                 print 'iata_{}_refresh - '.format(table)+ str(r.status_code) +' - Success - '+str(count)+' updated!'
             else: 
                 print str(r.status_code) + ' - ERROR!'
-        else: # we update one date so our check run logic holds
-            c.execute('Update {} set created = DATETIME(\'now\') where {} = 1'.format(table,id_col))
-            conn.commit()
+            if count == 0:
+                #we update one date so our check run logic holds for next time
+                c.execute('Update {} set created = DATETIME(\'now\') where {} = 1'.format(table,id_col))
+                conn.commit()
+        else: 
             print 'IATA {} -> its not time for an update yet'.format(table)
     else: 
         r = requests.post(url, headers=headers) #API Call and refill table data
