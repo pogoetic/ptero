@@ -26,7 +26,8 @@ def table_exists(tablename):
 def data_reset(reset=False):
     if reset == True:
         c = conn.cursor()
-        table = ['apilimit','apihistory','qpxresponse','useraccount']
+        table = ['apilimit','apihistory','qpxresponse','useraccount','userorigin',
+                 'userdestination','qpxresponse','qpxtrip','qpxsegment','qpxleg']
         for t in table:
             if table_exists(t) == True:
                 print 'Dropping Table {}'.format(t)
@@ -143,228 +144,18 @@ def nearby_airports(citycode,distance=150,primaryairports=1,apikey=iatakey):
         print str(r.status_code) + ' - ERROR!'
         return None
 
-
-def qpx_search(jsonquery,apikey=qpxkey):
-    if api_limit_reached(apiID=1) == False:
-        headers = {'content-type': 'application/json'}
-        url = 'https://www.googleapis.com/qpxExpress/v1/trips/search?key={}'.format(apikey)
-        r = requests.post(url, headers=headers, data=jsonquery)
-        if r.status_code == 200:
-            print str(r.status_code) +' - Success!'
-            update_api_history(apiID=1,numcalls=1)
-            response = r.json()
-            requestID = response['trips']['requestId']
-            update_qpx_response(r.text,requestID)
-            return r.json()
-        else: 
-            print str(r.status_code) + ' - Failure!'
-            return None
-    else:
-        print 'API Limit Reached!'
-        return None
-
-if __name__ == '__main__':
-
-    ############################################################################
-    #DB Setup
-    data_reset(reset=data_resetflag)
-
-    c = conn.cursor()
-    if table_exists('apilimit') == False:
-        #c.execute('Drop Table apilimit')
-        c.execute('Create Table IF NOT EXISTS apilimit(apiID int,apicode varchar(20),apiname varchar(100),dailylimit int)')
-        command = 'Insert Into apilimit(apiID, apicode, apiname, dailylimit) Values({},\'{}\',\'{}\',{})'.format('1','QPX','Google QPX Express API',50)
-        c.execute(command)
-        command = 'Insert Into apilimit(apiID, apicode, apiname, dailylimit) Values({},\'{}\',\'{}\',{})'.format('2','GEO','Google Maps Geocode API',2500)
-        c.execute(command)
-        conn.commit()
-
-    if table_exists('apihistory') == False:
-        #c.execute('Drop Table apihistory') 
-        c.execute('Create Table IF NOT EXISTS apihistory(apiID int, date date, numcalls int)')
-        c.execute('CREATE UNIQUE INDEX {ix} on {tn}({cn},{cn2})'.format(ix='IDX_apihistory', tn='apihistory', cn='apiID', cn2='date'))
-        conn.commit()
-
-    if table_exists('qpxresponse') == False:
-        #c.execute('Drop Table qpxresponse')
-        command = 'Create Table IF NOT EXISTS qpxresponse(queryid INTEGER PRIMARY KEY, rawresponse BLOB, created DATETIME DEFAULT (DATETIME(\'now\')))'
-        c.execute(command)
-        conn.commit()
-
-    if table_exists('useraccount') == False:
-        #c.execute('Drop Table useraccount')
-        command = 'Create Table IF NOT EXISTS useraccount(useraccountid VARCHAR(36) PRIMARY KEY, emailaddress varchar(250), created DATETIME DEFAULT (DATETIME(\'now\')))'
-        c.execute(command)
-        conn.commit()
-        create_user_account('pogster@gmail.com')
-
-    if table_exists('userorigin') == False:
-        command = 'Create Table IF NOT EXISTS userorigin(origininstanceID INTEGER PRIMARY KEY, useraccountid VARCHAR(36), origincityID, airportID, created DATETIME DEFAULT (DATETIME(\'now\')))'
-        c.execute(command)
-        command = 'CREATE UNIQUE INDEX {ix} on {tn}({cn},{cn2},{cn3})'.format(ix='IDX_userorigin', tn='userorigin', cn='useraccountid', cn2='origincityID', cn3='airportID')
-        c.execute(command)
-        conn.commit()
-
-    if table_exists('userdestination') == False:
-        command = 'Create Table IF NOT EXISTS userdestination(destinationinstanceID INTEGER PRIMARY KEY, useraccountid VARCHAR(36), destinationcityID, airportID, created DATETIME DEFAULT (DATETIME(\'now\')))'
-        c.execute(command)
-        command = 'CREATE UNIQUE INDEX {ix} on {tn}({cn},{cn2},{cn3})'.format(ix='IDX_userdestination', tn='userdestination', cn='useraccountid', cn2='destinationcityID', cn3='airportID')
-        c.execute(command)
-        conn.commit()
-
-    if table_exists('qpxtrip') == False:
-        command = "Create Table IF NOT EXISTS qpxtrip('tripinstanceID` INTEGER PRIMARY KEY, `requestID` VARCHAR(12), `fareID` VARCHAR(500), `farebasiscode` VARCHAR(8), `tripoptionID` VARCHAR(25), `tripoption` INTEGER, `latestticketingtime` DATETIME, `origin` VARCHAR(3), `destination` VARCHAR(3), `price` DECIMAL(10,2), `currency` VARCHAR(3), `totalflightduration` INTEGER, 'connections' INTEGER, `adultcount` INTEGER, `seniorcount` INTEGER, `childcount` INTEGER, `infantinseatcount` INTEGER, `infantinlapcount` INTEGER, `created` INTEGER DEFAULT (DATETIME(\'now\')))"
-        c.execute(command)
-        command = 'CREATE UNIQUE INDEX {ix} on {tn}({cn} DESC, {cn2} ASC})'.format(ix='IDX_qpxtrip', tn='qpxtrip', cn='requestID', cn2='tripoptionID')
-        c.execute(command)
-        conn.commit()   
-
-    if table_exists('qpxsegment') == False:
-        command = "Create Table IF NOT EXISTS qpxsegment(`segmentinstanceID` INTEGER PRIMARY KEY, `requestID` VARCHAR(22), `tripoptionID` VARCHAR(25), `farebasiscode` VARCHAR(8), `segmentID` VARCHAR(16), `segmentcarrier` VARCHAR(2), `segmentflightnumber` VARCHAR(10), `cabin` VARCHAR(50), `bookingcode` VARCHAR(10), `bookingcodecount` INTEGER, `marriedsegmentcount` INTEGER, `connectionduration` INTEGER, `created` DATETIME DEFAULT DATETIME(\'now\'))"
-        c.execute(command)
-        command = 'CREATE UNIQUE INDEX {ix} on {tn}({cn} DESC,{cn2} ASC,{cn3} ASC)'.format(ix='IDX_qpxsegment', tn='qpxsegment', cn='requestID', cn2='tripoptionID', cn3='segmentID')
-        c.execute(command)
-        conn.commit()   
-
-    if table_exists('qpxleg') == False:
-        command = "Create Table IF NOT EXISTS qpxleg(`leginstanceID` INTEGER UNIQUE, `requestID` VARCHAR(22), `tripoptionID` VARCHAR(25), `farebasiscode` VARCHAR(8), `segmentID` VARCHAR(16), `legID` VARCHAR(16), `aircraft` VARCHAR(3), `arrivaltime` DATETIME, `arrivaltimeutcoffset` INTEGER, `departuretime` DATETIME, `departuretimeutcoffset` INTEGER, `origin` VARCHAR(3), `originterminal` VARCHAR(5), `destination` VARCHAR(3), `destinationterminal` VARCHAR(5), `duration` INTEGER, `ontimeperformance` INTEGER, `mileage` INTEGER, `meal` VARCHAR(100), `secure` INTEGER, `changeplane` INTEGER, `created` DATETIME DEFAULT DATETIME(\'now\')"
-        c.execute(command)
-        command = 'CREATE UNIQUE INDEX {ix} on {tn}({cn} DESC,{cn2} ASC,{cn3} ASC)'.format(ix='IDX_qpxleg', tn='qpxleg', cn='requestID', cn2='tripoptionID',cn3='legID')
-        c.execute(command)
-        conn.commit()   
-
-
-    ############################################################################
-    #User Settings
-
-    #User must input emailaddress and up to 1 Origin + 10 Destination cities to track
-    #We will use Google Maps Geocode API to geocode a city to get Lat/Long
-    #We will use IATACodes Naerby API to lookup the airports in those cities + nearby airports with 150 miles. 
-
-    #create origins (must somehow enforce 1 per user at the beginning)
-    cityid, airports = nearby_airports(citycode='PHL')
-    for a in airports:
-        create_user_route(useraccountid='9e6b6207-31a3-481e-b5e3-5754fdcd222a',o_or_d='o',cityID=cityid,airportID=a)
-    
-    #create destinations
-    cityid, airports = nearby_airports(citycode='REK')
-    for a in airports:
-        create_user_route(useraccountid='9e6b6207-31a3-481e-b5e3-5754fdcd222a',o_or_d='d',cityID=cityid,airportID=a)
-    
-    query = ('Select a1.code as origincode, a2.code as destinationcode, uo.useraccountID '
-             'from userorigin uo '
-             'join userdestination ud on ud.useraccountid = uo.useraccountid '
-             'left join airports a1 on a1.airportID = uo.airportID '
-             'left join airports a2 on a2.airportID = ud.airportID ')
-
-    ############################################################################
-
-    requestorigin = 'PHL'
-    requestdestination = 'LAX'
-
-    jsonbody = {
-      "request": {
-        "passengers": {
-          "adultCount": "2",
-          "childCount": "1",
-          "infantInLapCount": "1",
-          "infantInSeatCount": "1",
-          "seniorCount": "1"
-        },
-        "saleCountry": "US",
-        "solutions": 50,
-        "slice": [
-          {
-            "origin": requestorigin,
-            "destination": requestdestination,
-            "date": "2017-03-01",
-            #"maxStops": integer,
-            #"maxConnectionDuration": integer,
-            "preferredCabin": "Coach", #COACH, PREMIUM_COACH, BUSINESS, and FIRST
-            #"permittedDepartureTime": {
-            #  "earliestTime": string,
-            #  "latestTime": string
-            #},
-            #"permittedCarrier": [
-            #  string
-            #],
-            #"alliance": string, #ONEWORLD, SKYTEAM, and STAR. Do not use this field with permittedCarrier 
-            "prohibitedCarrier": [
-              "KC","NK"
-            ],
-            "preferredCabin": "COACH"
-          }
-        ],
-        #"maxPrice": string,
-        "saleCountry": "US"
-        #"ticketingCountry": string,
-        #"refundable": boolean,
-        #"solutions": "1"
-      }
-    }
-
-    '''
-    jsonbody = {
-     "request": {
-      "passengers": {
-       "adultCount": 2
-      },
-      "saleCountry": "US",
-      "solutions": 1,
-      "slice": [
-       {
-        "date": "2017-03-01",
-        "origin": "PHL",
-        "destination": "LAX",
-        "prohibitedCarrier": [
-         "KC"
-        ],
-        "preferredCabin": "COACH"
-       }
-      ]
-     }
-    }
-    '''
-
-    print '\n'
-    #print json.dumps(jsonbody, indent=4)
-    parsedjson = json.loads(json.dumps(jsonbody))
-
-    ############################################################################
-    #QPX Calls
-    r = qpx_search(json.dumps(jsonbody))
-
-    #Next we must construct a request based on stored user input, instead of hardcoding it
-
-    '''
-    print '\n'
-    c.execute('Select * from apihistory where date = date(\'now\')')
-    rows = c.fetchall()
-    print rows
-    print '\n'
-
-    c.execute('Select * from useraccount')
-    rows = c.fetchall()
-    print rows
-    print '\n'
-    '''
-
-    #c.execute('Select * from qpxresponse where substr(created,0,11) = date(\'now\')')
-    #rows = c.fetchall()
-    #for row in rows:
-    #   print '\n'+ str(row) +'\n'
-
+def qpx_parse(response, verbose=False):
+    #Parse qpx Response
 
     #c.execute('Select rawresponse from qpxresponse where substr(created,0,11) = date(\'now\') order by created desc')
     #row = c.fetchone()
     #print json.dumps(json.loads(row[0]),indent=4)
     #r = json.loads(row[0])
-
-    #Parse qpx Response
-    requestID = r['trips']['requestId']
+    
+    requestID = response['trips']['requestId']
 
     x=0
-    for to in r['trips']['tripOption']:
+    for to in response['trips']['tripOption']:
         tripoption = str(x)
         price = to['saleTotal'][3:]
         currency = to['saleTotal'][:3]
@@ -497,7 +288,6 @@ if __name__ == '__main__':
                 'infantinseatcount':infantinseatcount,
                 'infantinlapcount':infantinlapcount}                      
 
-        print '\n'
         x+=1
 
         try:
@@ -513,9 +303,6 @@ if __name__ == '__main__':
             pass
             #return 'er:', er.message        
 
-        for i in trip:
-            print str(i) + ': ' + str(trip[i])
-
         for si in segments:
             try:
                 c.execute('Insert into qpxsegment(requestID,tripoptionID,farebasiscode,segmentID,segmentcarrier,segmentflightnumber,cabin,'
@@ -527,12 +314,6 @@ if __name__ == '__main__':
             except sqlite3.Error as er:
                 print 'er:', er.message
                 pass
-                #return 'er:', er.message       
-
-            print '\n'
-            print 'SEGMENTS: '
-            for sii in si:
-                print str(sii) + ': ' + str(si[sii])
 
         for l in legs:
             try:
@@ -549,13 +330,241 @@ if __name__ == '__main__':
                 pass
                 #return 'er:', er.message       
 
+        if verbose == True:
             print '\n'
-            print 'LEGS: '
-            for li in l:
-                print str(li) + ': ' + str(l[li])
+            for i in trip:
+                print str(i) + ': ' + str(trip[i])
+
+            for si in segments:
+                print '\n'
+                print 'SEGMENTS: '
+                for sii in si:
+                    print str(sii) + ': ' + str(si[sii])
+
+            for l in legs:
+                print '\n'
+                print 'LEGS: '
+                for li in l:
+                    print str(li) + ': ' + str(l[li])
+
+def qpx_search(jsonquery,apikey=qpxkey):
+    if api_limit_reached(apiID=1) == False:
+        headers = {'content-type': 'application/json'}
+        url = 'https://www.googleapis.com/qpxExpress/v1/trips/search?key={}'.format(apikey)
+        r = requests.post(url, headers=headers, data=jsonquery)
+        if r.status_code == 200:
+            print str(r.status_code) +' - Success!'
+            update_api_history(apiID=1,numcalls=1)
+            response = r.json()
+            requestID = response['trips']['requestId']
+            update_qpx_response(r.text,requestID)
+            qpx_parse(response=response,verbose=False)
+            return r.json()
+        else: 
+            print str(r.status_code) + ' - Failure!'
+            return None
+    else:
+        print 'API Limit Reached!'
+        return None
+
+if __name__ == '__main__':
+
+    ############################################################################
+    #DB Setup
+    data_reset(reset=data_resetflag)
+
+    c = conn.cursor()
+    if table_exists('apilimit') == False:
+        #c.execute('Drop Table apilimit')
+        c.execute('Create Table IF NOT EXISTS apilimit(apiID int,apicode varchar(20),apiname varchar(100),dailylimit int)')
+        command = 'Insert Into apilimit(apiID, apicode, apiname, dailylimit) Values({},\'{}\',\'{}\',{})'.format('1','QPX','Google QPX Express API',50)
+        c.execute(command)
+        command = 'Insert Into apilimit(apiID, apicode, apiname, dailylimit) Values({},\'{}\',\'{}\',{})'.format('2','GEO','Google Maps Geocode API',2500)
+        c.execute(command)
+        conn.commit()
+
+    if table_exists('apihistory') == False:
+        #c.execute('Drop Table apihistory') 
+        c.execute('Create Table IF NOT EXISTS apihistory(apiID int, date date, numcalls int)')
+        c.execute('CREATE UNIQUE INDEX {ix} on {tn}({cn},{cn2})'.format(ix='IDX_apihistory', tn='apihistory', cn='apiID', cn2='date'))
+        conn.commit()
+
+    if table_exists('qpxresponse') == False:
+        #c.execute('Drop Table qpxresponse')
+        command = 'Create Table IF NOT EXISTS qpxresponse(queryid INTEGER PRIMARY KEY, rawresponse BLOB, created DATETIME DEFAULT (DATETIME(\'now\')))'
+        c.execute(command)
+        conn.commit()
+
+    if table_exists('useraccount') == False:
+        #c.execute('Drop Table useraccount')
+        command = 'Create Table IF NOT EXISTS useraccount(useraccountid VARCHAR(36) PRIMARY KEY, emailaddress varchar(250), created DATETIME DEFAULT (DATETIME(\'now\')))'
+        c.execute(command)
+        conn.commit()
+        create_user_account('pogster@gmail.com')
+
+    if table_exists('userorigin') == False:
+        command = 'Create Table IF NOT EXISTS userorigin(origininstanceID INTEGER PRIMARY KEY, useraccountid VARCHAR(36), origincityID, airportID, created DATETIME DEFAULT (DATETIME(\'now\')))'
+        c.execute(command)
+        command = 'CREATE UNIQUE INDEX {ix} on {tn}({cn},{cn2},{cn3})'.format(ix='IDX_userorigin', tn='userorigin', cn='useraccountid', cn2='origincityID', cn3='airportID')
+        c.execute(command)
+        conn.commit()
+        #create origins (must somehow enforce 1 per user at the beginning)
+        cityid, airports = nearby_airports(citycode='PHL')
+        for a in airports:
+            create_user_route(useraccountid='9e6b6207-31a3-481e-b5e3-5754fdcd222a',o_or_d='o',cityID=cityid,airportID=a)
+
+    if table_exists('userdestination') == False:
+        command = 'Create Table IF NOT EXISTS userdestination(destinationinstanceID INTEGER PRIMARY KEY, useraccountid VARCHAR(36), destinationcityID, airportID, created DATETIME DEFAULT (DATETIME(\'now\')))'
+        c.execute(command)
+        command = 'CREATE UNIQUE INDEX {ix} on {tn}({cn},{cn2},{cn3})'.format(ix='IDX_userdestination', tn='userdestination', cn='useraccountid', cn2='destinationcityID', cn3='airportID')
+        c.execute(command)
+        conn.commit()
+        #create destinations
+        cityid, airports = nearby_airports(citycode='REK')
+        for a in airports:
+            create_user_route(useraccountid='9e6b6207-31a3-481e-b5e3-5754fdcd222a',o_or_d='d',cityID=cityid,airportID=a)
+
+    if table_exists('qpxtrip') == False:
+        command = "Create Table IF NOT EXISTS qpxtrip('tripinstanceID` INTEGER PRIMARY KEY, `requestID` VARCHAR(12), `fareID` VARCHAR(500), `farebasiscode` VARCHAR(8), `tripoptionID` VARCHAR(25), `tripoption` INTEGER, `latestticketingtime` DATETIME, `origin` VARCHAR(3), `destination` VARCHAR(3), `price` DECIMAL(10,2), `currency` VARCHAR(3), `totalflightduration` INTEGER, 'connections' INTEGER, `adultcount` INTEGER, `seniorcount` INTEGER, `childcount` INTEGER, `infantinseatcount` INTEGER, `infantinlapcount` INTEGER, `created` INTEGER DEFAULT (DATETIME(\'now\')))"
+        c.execute(command)
+        command = 'CREATE UNIQUE INDEX {ix} on {tn}({cn} DESC, {cn2} ASC})'.format(ix='IDX_qpxtrip', tn='qpxtrip', cn='requestID', cn2='tripoptionID')
+        c.execute(command)
+        conn.commit()   
+
+    if table_exists('qpxsegment') == False:
+        command = "Create Table IF NOT EXISTS qpxsegment(`segmentinstanceID` INTEGER PRIMARY KEY, `requestID` VARCHAR(22), `tripoptionID` VARCHAR(25), `farebasiscode` VARCHAR(8), `segmentID` VARCHAR(16), `segmentcarrier` VARCHAR(2), `segmentflightnumber` VARCHAR(10), `cabin` VARCHAR(50), `bookingcode` VARCHAR(10), `bookingcodecount` INTEGER, `marriedsegmentcount` INTEGER, `connectionduration` INTEGER, `created` DATETIME DEFAULT DATETIME(\'now\'))"
+        c.execute(command)
+        command = 'CREATE UNIQUE INDEX {ix} on {tn}({cn} DESC,{cn2} ASC,{cn3} ASC)'.format(ix='IDX_qpxsegment', tn='qpxsegment', cn='requestID', cn2='tripoptionID', cn3='segmentID')
+        c.execute(command)
+        conn.commit()   
+
+    if table_exists('qpxleg') == False:
+        command = "Create Table IF NOT EXISTS qpxleg(`leginstanceID` INTEGER UNIQUE, `requestID` VARCHAR(22), `tripoptionID` VARCHAR(25), `farebasiscode` VARCHAR(8), `segmentID` VARCHAR(16), `legID` VARCHAR(16), `aircraft` VARCHAR(3), `arrivaltime` DATETIME, `arrivaltimeutcoffset` INTEGER, `departuretime` DATETIME, `departuretimeutcoffset` INTEGER, `origin` VARCHAR(3), `originterminal` VARCHAR(5), `destination` VARCHAR(3), `destinationterminal` VARCHAR(5), `duration` INTEGER, `ontimeperformance` INTEGER, `mileage` INTEGER, `meal` VARCHAR(100), `secure` INTEGER, `changeplane` INTEGER, `created` DATETIME DEFAULT DATETIME(\'now\')"
+        c.execute(command)
+        command = 'CREATE UNIQUE INDEX {ix} on {tn}({cn} DESC,{cn2} ASC,{cn3} ASC)'.format(ix='IDX_qpxleg', tn='qpxleg', cn='requestID', cn2='tripoptionID',cn3='legID')
+        c.execute(command)
+        conn.commit()   
 
 
-#Need to grab ALL legs(do we have the right datamodel in qpxresponse table?)
+    ############################################################################
+    #User Settings
+
+    #User must input emailaddress and up to 1 Origin + 10 Destination cities to track
+    #We will use Google Maps Geocode API to geocode a city to get Lat/Long
+    #We will use IATACodes Naerby API to lookup the airports in those cities + nearby airports with 150 miles. 
+
+    #create origins (must somehow enforce 1 per user at the beginning)
+    cityid, airports = nearby_airports(citycode='PHL')
+    for a in airports:
+        create_user_route(useraccountid='9e6b6207-31a3-481e-b5e3-5754fdcd222a',o_or_d='o',cityID=cityid,airportID=a)
+    
+    #create destinations
+    cityid, airports = nearby_airports(citycode='REK')
+    for a in airports:
+        create_user_route(useraccountid='9e6b6207-31a3-481e-b5e3-5754fdcd222a',o_or_d='d',cityID=cityid,airportID=a)
+    
+    query = ('Select a1.code as origincode, a2.code as destinationcode, uo.useraccountID '
+             'from userorigin uo '
+             'join userdestination ud on ud.useraccountid = uo.useraccountid '
+             'left join airports a1 on a1.airportID = uo.airportID '
+             'left join airports a2 on a2.airportID = ud.airportID ')
+
+    ############################################################################
+
+    requestorigin = 'PHL'
+    requestdestination = 'LAX'
+
+    jsonbody = {
+      "request": {
+        "passengers": {
+          "adultCount": "2",
+          "childCount": "1",
+          "infantInLapCount": "1",
+          "infantInSeatCount": "1",
+          "seniorCount": "1"
+        },
+        "saleCountry": "US",
+        "solutions": 50,
+        "slice": [
+          {
+            "origin": requestorigin,
+            "destination": requestdestination,
+            "date": "2017-03-01",
+            #"maxStops": integer,
+            #"maxConnectionDuration": integer,
+            "preferredCabin": "Coach", #COACH, PREMIUM_COACH, BUSINESS, and FIRST
+            #"permittedDepartureTime": {
+            #  "earliestTime": string,
+            #  "latestTime": string
+            #},
+            #"permittedCarrier": [
+            #  string
+            #],
+            #"alliance": string, #ONEWORLD, SKYTEAM, and STAR. Do not use this field with permittedCarrier 
+            "prohibitedCarrier": [
+              "KC","NK"
+            ],
+            "preferredCabin": "COACH"
+          }
+        ],
+        #"maxPrice": string,
+        "saleCountry": "US"
+        #"ticketingCountry": string,
+        #"refundable": boolean,
+        #"solutions": "1"
+      }
+    }
+
+    '''
+    jsonbody = {
+     "request": {
+      "passengers": {
+       "adultCount": 2
+      },
+      "saleCountry": "US",
+      "solutions": 1,
+      "slice": [
+       {
+        "date": "2017-03-01",
+        "origin": "PHL",
+        "destination": "LAX",
+        "prohibitedCarrier": [
+         "KC"
+        ],
+        "preferredCabin": "COACH"
+       }
+      ]
+     }
+    }
+    '''
+
+    print '\n'
+    #print json.dumps(jsonbody, indent=4)
+    #parsedjson = json.loads(json.dumps(jsonbody))
+
+
+
+    '''
+    print '\n'
+    c.execute('Select * from apihistory where date = date(\'now\')')
+    rows = c.fetchall()
+    print rows
+    print '\n'
+
+    c.execute('Select * from useraccount')
+    rows = c.fetchall()
+    print rows
+    print '\n'
+    '''
+
+    ############################################################################
+    #QPX Search
+    r = qpx_search(json.dumps(jsonbody))
+
+
+
+    #Next we must construct a request based on stored user input, instead of hardcoding it
+
 
     print '\n'
     conn.close
