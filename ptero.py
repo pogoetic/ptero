@@ -100,9 +100,11 @@ def create_user_route(useraccountid,o_or_d,cityID,airportID):
     if o_or_d == 'o':
         table = 'userorigin'
         col = 'origincityid'
+        col2 =  'origininstanceID'
     elif o_or_d == 'd':
         table = 'userdestination'
         col = 'destinationcityid'
+        col2 = 'destinationinstanceID'
     else: 
         return None
 
@@ -110,12 +112,12 @@ def create_user_route(useraccountid,o_or_d,cityID,airportID):
         c = conn.cursor()   
         c.execute('Insert Into {}(useraccountid, {}, airportID) Values(\'{}\',{},{})'.format(table,col,useraccountid,cityID,airportID))
         conn.commit()
-        c.execute('Select origininstanceID from {} where useraccountid = \'{}\' Order by created desc LIMIT 1'.format(table, useraccountid))
+        c.execute('Select {} from {} where useraccountid = \'{}\' Order by created desc LIMIT 1'.format(col2,table, useraccountid))
         row = c.fetchone()
         return row[0]
 
     except sqlite3.Error as er:
-        #print 'er:', er.message
+        print 'er:', er.message
         return 'er:', er.message
 
 def nearby_airports(citycode,distance=150,primaryairports=1,apikey=iatakey):
@@ -450,7 +452,6 @@ if __name__ == '__main__':
     #User Settings
 
     #User must input emailaddress and up to 1 Origin + 10 Destination cities to track
-    #We will use Google Maps Geocode API to geocode a city to get Lat/Long
     #We will use IATACodes Naerby API to lookup the airports in those cities + nearby airports with 150 miles. 
 
     #create origins (must somehow enforce 1 per user at the beginning)
@@ -559,7 +560,7 @@ if __name__ == '__main__':
 
     ############################################################################
     #QPX Search
-    r = qpx_search(json.dumps(jsonbody))
+    #r = qpx_search(json.dumps(jsonbody))
 
 
 
