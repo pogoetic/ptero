@@ -213,23 +213,23 @@ if __name__ == '__main__':
         conn.commit()
 
     if table_exists('qpxtrip') == False:
-        command = "Create Table IF NOT EXISTS qpxtrip('tripinstanceID` INTEGER PRIMARY KEY, `requestID` VARCHAR(12), `fareID` VARCHAR(44), `farebasiscode` VARCHAR(8), `tripoptionID` VARCHAR(25), `tripoption` INTEGER, `latestticketingtime` DATETIME, `origin` VARCHAR(3), `destination` VARCHAR(3), `price` DECIMAL(10,2), `currency` VARCHAR(3), `totalflightduration` INTEGER, `adultcount` INTEGER, `seniorcount` INTEGER, `childcount` INTEGER, `infantinseatcount` INTEGER, `infantinlapcount` INTEGER, `created` INTEGER DEFAULT (DATETIME(\'now\')))"
+        command = "Create Table IF NOT EXISTS qpxtrip('tripinstanceID` INTEGER PRIMARY KEY, `requestID` VARCHAR(12), `fareID` VARCHAR(500), `farebasiscode` VARCHAR(8), `tripoptionID` VARCHAR(25), `tripoption` INTEGER, `latestticketingtime` DATETIME, `origin` VARCHAR(3), `destination` VARCHAR(3), `price` DECIMAL(10,2), `currency` VARCHAR(3), `totalflightduration` INTEGER, 'connections' INTEGER, `adultcount` INTEGER, `seniorcount` INTEGER, `childcount` INTEGER, `infantinseatcount` INTEGER, `infantinlapcount` INTEGER, `created` INTEGER DEFAULT (DATETIME(\'now\')))"
         c.execute(command)
         command = 'CREATE UNIQUE INDEX {ix} on {tn}({cn} DESC, {cn2} ASC})'.format(ix='IDX_qpxtrip', tn='qpxtrip', cn='requestID', cn2='tripoptionID')
         c.execute(command)
         conn.commit()   
 
     if table_exists('qpxsegment') == False:
-        command = "Create Table IF NOT EXISTS qpxsegment(`segmentinstanceID` INTEGER PRIMARY KEY, `requestID` VARCHAR(22), `fareID` VARCHAR(44), `farebasiscode` VARCHAR(8), `segmentID` VARCHAR(16), `segmentcarrier` VARCHAR(2), `segmentflightnumber` VARCHAR(10), `cabin` VARCHAR(50), `bookingcode` VARCHAR(10), `bookingcodecount` INTEGER, `marriedsegmentcount` INTEGER, `connectionduration` INTEGER, `created` DATETIME DEFAULT DATETIME(\'now\'))"
+        command = "Create Table IF NOT EXISTS qpxsegment(`segmentinstanceID` INTEGER PRIMARY KEY, `requestID` VARCHAR(22), `tripoptionID` VARCHAR(25), `farebasiscode` VARCHAR(8), `segmentID` VARCHAR(16), `segmentcarrier` VARCHAR(2), `segmentflightnumber` VARCHAR(10), `cabin` VARCHAR(50), `bookingcode` VARCHAR(10), `bookingcodecount` INTEGER, `marriedsegmentcount` INTEGER, `connectionduration` INTEGER, `created` DATETIME DEFAULT DATETIME(\'now\'))"
         c.execute(command)
-        command = 'CREATE UNIQUE INDEX {ix} on {tn}({cn} DESC,{cn2} ASC)'.format(ix='IDX_qpxsegment', tn='qpxsegment', cn='requestID', cn2='segmentID')
+        command = 'CREATE UNIQUE INDEX {ix} on {tn}({cn} DESC,{cn2} ASC,{cn3} ASC)'.format(ix='IDX_qpxsegment', tn='qpxsegment', cn='requestID', cn2='tripoptionID', cn3='segmentID')
         c.execute(command)
         conn.commit()   
 
     if table_exists('qpxleg') == False:
-        command = "Create Table IF NOT EXISTS qpxleg(`leginstanceID` INTEGER UNIQUE, `requestID` VARCHAR(22), `fareID` VARCHAR(44), `farebasiscode` VARCHAR(8), `segmentID` VARCHAR(16), `legID` VARCHAR(16), `aircraft` VARCHAR(3), `arrivaltime` DATETIME, `arrivaltimeutcoffset` INTEGER, `departuretime` DATETIME, `departuretimeutcoffset` INTEGER, `origin` VARCHAR(3), `originterminal` VARCHAR(5), `destination` VARCHAR(3), `destinationterminal` VARCHAR(5), `duration` INTEGER, `ontimeperformance` INTEGER, `mileage` INTEGER, `meal` VARCHAR(100), `secure` INTEGER, `changeplane` INTEGER, `created` DATETIME DEFAULT DATETIME(\'now\')"
+        command = "Create Table IF NOT EXISTS qpxleg(`leginstanceID` INTEGER UNIQUE, `requestID` VARCHAR(22), `tripoptionID` VARCHAR(25), `farebasiscode` VARCHAR(8), `segmentID` VARCHAR(16), `legID` VARCHAR(16), `aircraft` VARCHAR(3), `arrivaltime` DATETIME, `arrivaltimeutcoffset` INTEGER, `departuretime` DATETIME, `departuretimeutcoffset` INTEGER, `origin` VARCHAR(3), `originterminal` VARCHAR(5), `destination` VARCHAR(3), `destinationterminal` VARCHAR(5), `duration` INTEGER, `ontimeperformance` INTEGER, `mileage` INTEGER, `meal` VARCHAR(100), `secure` INTEGER, `changeplane` INTEGER, `created` DATETIME DEFAULT DATETIME(\'now\')"
         c.execute(command)
-        command = 'CREATE UNIQUE INDEX {ix} on {tn}({cn} DESC,{cn2} ASC,{cn3} ASC)'.format(ix='IDX_qpxleg', tn='qpxleg', cn='requestID', cn2='segmentID',cn3='legID')
+        command = 'CREATE UNIQUE INDEX {ix} on {tn}({cn} DESC,{cn2} ASC,{cn3} ASC)'.format(ix='IDX_qpxleg', tn='qpxleg', cn='requestID', cn2='tripoptionID',cn3='legID')
         c.execute(command)
         conn.commit()   
 
@@ -272,7 +272,7 @@ if __name__ == '__main__':
           "seniorCount": "1"
         },
         "saleCountry": "US",
-        "solutions": 2,
+        "solutions": 50,
         "slice": [
           {
             "origin": requestorigin,
@@ -332,10 +332,11 @@ if __name__ == '__main__':
 
     ############################################################################
     #QPX Calls
-    #response = qpx_search(json.dumps(jsonbody))
+    r = qpx_search(json.dumps(jsonbody))
 
     #Next we must construct a request based on stored user input, instead of hardcoding it
 
+    '''
     print '\n'
     c.execute('Select * from apihistory where date = date(\'now\')')
     rows = c.fetchall()
@@ -346,19 +347,20 @@ if __name__ == '__main__':
     rows = c.fetchall()
     print rows
     print '\n'
-
+    '''
 
     #c.execute('Select * from qpxresponse where substr(created,0,11) = date(\'now\')')
     #rows = c.fetchall()
     #for row in rows:
     #   print '\n'+ str(row) +'\n'
 
-    #Parse qpx Response
-        #Grab the actual response in the future rather than querying DB
-    c.execute('Select rawresponse from qpxresponse where substr(created,0,11) = date(\'now\') order by created desc')
-    row = c.fetchone()
+
+    #c.execute('Select rawresponse from qpxresponse where substr(created,0,11) = date(\'now\') order by created desc')
+    #row = c.fetchone()
     #print json.dumps(json.loads(row[0]),indent=4)
-    r = json.loads(row[0])
+    #r = json.loads(row[0])
+
+    #Parse qpx Response
     requestID = r['trips']['requestId']
 
     x=0
@@ -399,8 +401,20 @@ if __name__ == '__main__':
                         secure = 0
                 else: 
                     secure = None
+                if 'originTerminal' in l:
+                    originterminal = l['originTerminal']
+                else:
+                    originterminal = None
+                if 'destinationTerminal' in l:
+                    destinationterminal = l['destinationTerminal']
+                else:
+                    destinationterminal = None
+                if 'onTimePerformance' in l:
+                    onTimePerformance = str(l['onTimePerformance'])
+                else:
+                    onTimePerformance = None
                 legs.append({'requestID': requestID,
-                             'fareID' : fareID,
+                             'tripoptionID' : tripoptionID,
                              'farebasiscode' : farebasiscode,
                              'segmentID': s['id'],
                              'legID' : l['id'],
@@ -410,11 +424,11 @@ if __name__ == '__main__':
                              'departuretime':d2.strftime('%Y-%m-%d %X'),
                              'departuretimeutcoffset':d2.strftime('%z'),
                              'origin' : l['origin'],
-                             'originterminal' : l['originTerminal'],
+                             'originterminal' : originterminal,
                              'destination' : l['destination'],
-                             'destinationterminal' : l['destinationTerminal'],
+                             'destinationterminal' : destinationterminal,
                              'duration' : str(l['duration']),
-                             'ontimeperformance' : str(l['onTimePerformance']),
+                             'ontimeperformance' : onTimePerformance,
                              'mileage' : str(l['mileage']),
                              'meal' : meal,
                              'secure' : secure,
@@ -428,7 +442,7 @@ if __name__ == '__main__':
                 connectionduration = to['slice'][0]['duration'] - legdurationtotal
                 pass
             segments.append({'requestID': requestID,
-                             'fareID' : fareID,
+                             'tripoptionID' : tripoptionID,
                              'farebasiscode' : farebasiscode,
                              'segmentID' : s['id'],
                              'segmentcarrier' : str(s['flight']['carrier']),
@@ -476,6 +490,7 @@ if __name__ == '__main__':
                 'price':price,
                 'currency':currency,
                 'totalflightduration':total_flight_duration,
+                'connections' : len(legs)-1,
                 'adultcount':adultcount,
                 'seniorcount':seniorcount,
                 'childcount':childcount,
@@ -487,11 +502,11 @@ if __name__ == '__main__':
 
         try:
             c.execute('Insert into qpxtrip(requestID,fareID,farebasiscode,tripoptionID,tripoption,latestticketingtime,origin,destination,'
-                          'price,currency,totalflightduration,adultcount,seniorcount,childcount,infantinseatcount,infantinlapcount) '
-                          'VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',(trip['requestID'],trip['fareID'],trip['farebasiscode'],trip['tripoptionID'],
+                          'price,currency,totalflightduration,connections,adultcount,seniorcount,childcount,infantinseatcount,infantinlapcount) '
+                          'VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',(trip['requestID'],trip['fareID'],trip['farebasiscode'],trip['tripoptionID'],
                             trip['tripoption'],trip['latestticketingtime'],trip['origin'],trip['destination'],trip['price'],
-                            trip['currency'],trip['totalflightduration'],trip['adultcount'],trip['seniorcount'],trip['childcount'],
-                            trip['infantinseatcount'],trip['infantinlapcount']))
+                            trip['currency'],trip['totalflightduration'],trip['connections'],trip['adultcount'],trip['seniorcount'],
+                            trip['childcount'],trip['infantinseatcount'],trip['infantinlapcount']))
             conn.commit()
         except sqlite3.Error as er:
             print 'er:', er.message
@@ -503,9 +518,9 @@ if __name__ == '__main__':
 
         for si in segments:
             try:
-                c.execute('Insert into qpxsegment(requestID,fareID,farebasiscode,segmentID,segmentcarrier,segmentflightnumber,cabin,'
+                c.execute('Insert into qpxsegment(requestID,tripoptionID,farebasiscode,segmentID,segmentcarrier,segmentflightnumber,cabin,'
                           'bookingcode,bookingcodecount,marriedsegmentcount,connectionduration) ' 
-                          'VALUES(?,?,?,?,?,?,?,?,?,?,?)',(si['requestID'],si['fareID'],si['farebasiscode'],si['segmentID'],
+                          'VALUES(?,?,?,?,?,?,?,?,?,?,?)',(si['requestID'],si['tripoptionID'],si['farebasiscode'],si['segmentID'],
                            si['segmentcarrier'],si['segmentflightnumber'],si['cabin'],si['bookingcode'],si['bookingcodecount'],
                            si['marriedsegmentgroup'],si['connectionduration']))
                 conn.commit()
@@ -521,10 +536,10 @@ if __name__ == '__main__':
 
         for l in legs:
             try:
-                c.execute('Insert into qpxleg(requestID,fareID,farebasiscode,segmentID,legID,aircraft,arrivaltime,'
+                c.execute('Insert into qpxleg(requestID,tripoptionID,farebasiscode,segmentID,legID,aircraft,arrivaltime,'
                           'arrivaltimeutcoffset,departuretime,departuretimeutcoffset,origin,originterminal,destination,'
                           'destinationterminal,duration,ontimeperformance,mileage,meal,secure,changeplane) ' 
-                          'VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',(l['requestID'],l['fareID'],l['farebasiscode'],l['segmentID'],l['legID'],
+                          'VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',(l['requestID'],l['tripoptionID'],l['farebasiscode'],l['segmentID'],l['legID'],
                            l['aircraft'],l['arrivaltime'],l['arrivaltimeutcoffset'],l['departuretime'],l['departuretimeutcoffset'],
                            l['origin'],l['originterminal'],l['destination'],l['destinationterminal'],l['duration'],l['ontimeperformance'],
                            l['mileage'],l['meal'],l['secure'],l['changeplane']))
