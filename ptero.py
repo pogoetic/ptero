@@ -464,6 +464,7 @@ if __name__ == '__main__':
     for a in airports:
         create_user_route(useraccountid='9e6b6207-31a3-481e-b5e3-5754fdcd222a',o_or_d='d',cityID=cityid,airportID=a)
     
+    #Query to get unique combinations of Origin/Destinations for a user
     query = ('Select a1.code as origincode, a2.code as destinationcode, uo.useraccountID '
              'from userorigin uo '
              'join userdestination ud on ud.useraccountid = uo.useraccountid '
@@ -471,6 +472,7 @@ if __name__ == '__main__':
              'left join airports a2 on a2.airportID = ud.airportID ')
 
     ############################################################################
+    #QPX Search
 
     requestorigin = 'PHL'
     requestdestination = 'LAX'
@@ -516,57 +518,24 @@ if __name__ == '__main__':
       }
     }
 
-    '''
-    jsonbody = {
-     "request": {
-      "passengers": {
-       "adultCount": 2
-      },
-      "saleCountry": "US",
-      "solutions": 1,
-      "slice": [
-       {
-        "date": "2017-03-01",
-        "origin": "PHL",
-        "destination": "LAX",
-        "prohibitedCarrier": [
-         "KC"
-        ],
-        "preferredCabin": "COACH"
-       }
-      ]
-     }
-    }
-    '''
-
-    print '\n'
     #print json.dumps(jsonbody, indent=4)
     #parsedjson = json.loads(json.dumps(jsonbody))
 
-
-
-    '''
-    print '\n'
-    c.execute('Select * from apihistory where date = date(\'now\')')
-    rows = c.fetchall()
-    print rows
-    print '\n'
-
-    c.execute('Select * from useraccount')
-    rows = c.fetchall()
-    print rows
-    print '\n'
-    '''
+    
+    #r = qpx_search(json.dumps(jsonbody))
+    ## Next we must construct a request based on stored user input, instead of hardcoding it
 
     ############################################################################
-    #QPX Search
-    #r = qpx_search(json.dumps(jsonbody))
+    #SKS Search
+
+    
 
 
 
-    #Next we must construct a request based on stored user input, instead of hardcoding it
 
 
+
+    
     print '\n'
     conn.close
 
