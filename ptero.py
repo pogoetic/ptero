@@ -76,8 +76,6 @@ def update_qpx_response(rawresponse, requestID):
     c = conn.cursor()   
     #command = "Insert Into qpxresponse(rawresponse) values(\'{}\');".format(rawresponse)
     c.execute("Insert Into qpxresponse(rawresponse,requestID) values(?,?)",(rawresponse,requestID))
-
-
     conn.commit()
     command = 'Select * from qpxresponse order by queryid desc LIMIT 1'
     c.execute(command)
@@ -369,6 +367,22 @@ def qpx_search(jsonquery,apikey=qpxkey):
         print 'API Limit Reached!'
         return None
 
+def get_user_preferences(useraccountid):
+    #Query to get unique combinations of Origin/Destinations for a user
+    #Add in the future to return preferred airlines, travel seasons, length of trip, etc...
+    c = conn.cursor()
+    command = """Select uo.useraccountID, a1.code as origincode, a2.code as destinationcode
+             from userorigin uo 
+             join userdestination ud on ud.useraccountid = uo.useraccountid 
+             left join airports a1 on a1.airportID = uo.airportID 
+             left join airports a2 on a2.airportID = ud.airportID """
+    c.execute(command)
+    rows = c.fetchall()
+    routes = []
+    for r in rows:
+        routes.append([r[1],r[2]])
+    return routes
+
 if __name__ == '__main__':
 
     ############################################################################
@@ -393,7 +407,7 @@ if __name__ == '__main__':
 
     if table_exists('qpxresponse') == False:
         #c.execute('Drop Table qpxresponse')
-        command = 'Create Table IF NOT EXISTS qpxresponse(queryid INTEGER PRIMARY KEY, rawresponse BLOB, created DATETIME DEFAULT (DATETIME(\'now\')))'
+        command = 'Create Table IF NOT EXISTS qpxresponse(queryid INTEGER PRIMARY KEY, rawresponse BLOB, created DATETIME DEFAULT (DATETIME(\'now\')), requestID TEXT)'
         c.execute(command)
         conn.commit()
 
@@ -447,7 +461,18 @@ if __name__ == '__main__':
         c.execute(command)
         conn.commit()   
 
+    if table_exists('sksresponse') == False:
+        command = 'Create Table IF NOT EXISTS sksresponse(queryid INTEGER PRIMARY KEY, rawresponse BLOB, created DATETIME DEFAULT (DATETIME(\'now\')))'
+        c.execute(command)
+        conn.commit()
 
+    if table_exists('sksquotes') == False:
+        command = "Create Table IF NOT EXISTS sksquotes(queryID INTEGER NOT NULL, quoteID INTEGER, quotedatetime datetime, minprice decimal(10,2), direct tinyint, out_carrierID INTEGER, out_originID INTEGER, out_destinationID INTEGER, out_departuredate datetime, in_carrierID INTEGER, in_originID INTEGER, in_destinationID INTEGER, in_departuredate datetime, created DATETIME DEFAULT(DATETIME(\'now\')))"
+        c.execute(command)
+        command = "CREATE UNIQUE INDEX IDX_sksquotes ON sksquotes(queryID ,quoteID)"
+        c.execute(command)
+        conn.commit()
+        
     ############################################################################
     #User Settings
 
@@ -463,13 +488,96 @@ if __name__ == '__main__':
     cityid, airports = nearby_airports(citycode='REK')
     for a in airports:
         create_user_route(useraccountid='9e6b6207-31a3-481e-b5e3-5754fdcd222a',o_or_d='d',cityID=cityid,airportID=a)
-    
-    #Query to get unique combinations of Origin/Destinations for a user
-    query = ('Select a1.code as origincode, a2.code as destinationcode, uo.useraccountID '
-             'from userorigin uo '
-             'join userdestination ud on ud.useraccountid = uo.useraccountid '
-             'left join airports a1 on a1.airportID = uo.airportID '
-             'left join airports a2 on a2.airportID = ud.airportID ')
+
+    ############################################################################
+    #SKS Search
+
+    def update_sks_response(rawresponse):
+        c = conn.cursor()   
+        #command = "Insert Into qpxresponse(rawresponse) values(\'{}\');".format(rawresponse)
+        c.execute("Insert Into sksresponse(rawresponse) values(?)",(rawresponse,))
+        conn.commit()
+        command = 'Select * from sksresponse order by queryid desc LIMIT 1'
+        c.execute(command)
+        row = c.fetchone()
+        return row[0]
+
+    def sks_search(userip, origin, destination,apikey=skyscannerkey):
+        headers = {'Accept': 'application/json',
+                   'X-Forwarded-For': userip}
+        url = 'http://partners.api.skyscanner.net/apiservices/browsequotes/v1.0/US/USD/en-US/{}-Iata/{}-Iata/anytime/anytime/?apiKey={}'.format(origin,destination,apikey)
+        r = requests.get(url, headers=headers)
+        update_api_history(apiID=6,numcalls=1)
+        queryID = update_sks_response(r.text)
+        if r.status_code == 200:
+            #print json.dumps(r.json(), indent=4)
+            response = r.json()
+            
+            for x in response['Carriers']:
+                print x['CarrierId']
+                print x['Name']
+                command = "Update airlines Set skscarrierID = {} where name = \'{}\'".format(x['CarrierId'],x['Name'])
+                c.execute(command)
+                conn.commit()
+
+            for q in response['Quotes']:
+                print q['QuoteId']
+                d1 = dateutil.parser.parse(q['QuoteDateTime']) 
+                print d1.strftime('%Y-%m-%d %X')
+                print q['MinPrice']
+                if q['Direct'] == True:
+                    direct = 1
+                else: 
+                    direct = 0
+                print q['Direct']
+                if q['OutboundLeg']['CarrierIds']:
+                    print q['OutboundLeg']['CarrierIds'][0]
+                    out_carrierID = q['OutboundLeg']['CarrierIds'][0]
+                print q['OutboundLeg']['OriginId']
+                print q['OutboundLeg']['DestinationId']
+                d2 = dateutil.parser.parse(q['OutboundLeg']['DepartureDate']) 
+                print d2.strftime('%Y-%m-%d %X')
+                if q['InboundLeg']['CarrierIds']:
+                    print q['InboundLeg']['CarrierIds'][0]
+                    in_carrierID = q['InboundLeg']['CarrierIds'][0]
+                print q['InboundLeg']['OriginId']
+                print q['InboundLeg']['DestinationId']
+                d3 = dateutil.parser.parse(q['InboundLeg']['DepartureDate']) 
+                print d3.strftime('%Y-%m-%d %X')
+
+                command = """Insert Into sksquotes(queryID,quoteID,quotedatetime,minprice,direct,out_carrierID,out_originID,out_destinationID,out_departuredate,in_carrierID,in_originID,in_destinationID,in_departuredate) 
+                        VALUES({queryID},{quoteID},\'{quotedatetime}\',{minprice},{direct},{out_carrierID},{out_originID},{out_destinationID},\'{out_departuredate}\',{in_carrierID},{in_originID},{in_destinationID},\'{in_departuredate}\')""".format(queryID=queryID,
+                        quoteID=q['QuoteId'],
+                        quotedatetime=d1.strftime('%Y-%m-%d %X'),
+                        minprice=q['MinPrice'],
+                        direct=direct,
+                        out_carrierID=out_carrierID,
+                        out_originID=q['OutboundLeg']['OriginId'],
+                        out_destinationID=q['OutboundLeg']['DestinationId'],
+                        out_departuredate=d2.strftime('%Y-%m-%d %X'),
+                        in_carrierID=in_carrierID,
+                        in_originID=q['InboundLeg']['OriginId'],
+                        in_destinationID=q['InboundLeg']['DestinationId'],
+                        in_departuredate=d3.strftime('%Y-%m-%d %X'))
+                print command
+                try:
+                    c.execute(command)
+                    conn.commit()
+                except:
+                    conn.rollback()
+                    conn.close
+                    exit()
+
+            conn.close
+            exit()
+
+    useraccountid = '9e6b6207-31a3-481e-b5e3-5754fdcd222a'
+    routes = get_user_preferences(useraccountid)
+
+    for r in routes:
+        print r
+        sks_search(userip='100.34.202.47',origin=r[0],destination=r[1])
+
 
     ############################################################################
     #QPX Search
@@ -525,17 +633,7 @@ if __name__ == '__main__':
     #r = qpx_search(json.dumps(jsonbody))
     ## Next we must construct a request based on stored user input, instead of hardcoding it
 
-    ############################################################################
-    #SKS Search
 
-    
-
-
-
-
-
-
-    
     print '\n'
     conn.close
 
