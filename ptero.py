@@ -72,10 +72,10 @@ def api_limit_reached(apiID):
     else: 
         return False
 
-def update_qpx_response(rawresponse, requestID):
+def update_qpx_response(useraccountID, rawresponse, requestID):
     c = conn.cursor()   
     #command = "Insert Into qpxresponse(rawresponse) values(\'{}\');".format(rawresponse)
-    c.execute("Insert Into qpxresponse(rawresponse,requestID) values(?,?)",(rawresponse,requestID))
+    c.execute("Insert Into qpxresponse(useraccountID, rawresponse,requestID) values(?,?,?)",(useraccountID,rawresponse,requestID))
     conn.commit()
     command = 'Select * from qpxresponse order by queryid desc LIMIT 1'
     c.execute(command)
@@ -348,7 +348,7 @@ def qpx_parse(response, verbose=False):
                 for li in l:
                     print str(li) + ': ' + str(l[li])
 
-def qpx_search(jsonquery,apikey=qpxkey):
+def qpx_search(useraccountID,jsonquery,apikey=qpxkey):
     if api_limit_reached(apiID=1) == False:
         headers = {'content-type': 'application/json'}
         url = 'https://www.googleapis.com/qpxExpress/v1/trips/search?key={}'.format(apikey)
@@ -358,7 +358,7 @@ def qpx_search(jsonquery,apikey=qpxkey):
             update_api_history(apiID=1,numcalls=1)
             response = r.json()
             requestID = response['trips']['requestId']
-            update_qpx_response(r.text,requestID)
+            update_qpx_response(useraccountID,r.text,requestID)
             qpx_parse(response=response,verbose=False)
             return r.json()
         else: 
@@ -384,23 +384,23 @@ def get_user_preferences(useraccountid):
         routes.append([r[1],r[2]])
     return routes
 
-def update_sks_response(rawresponse):
+def update_sks_response(useraccountID,rawresponse):
         c = conn.cursor()   
         #command = "Insert Into qpxresponse(rawresponse) values(\'{}\');".format(rawresponse)
-        c.execute("Insert Into sksresponse(rawresponse) values(?)",(rawresponse,))
+        c.execute("Insert Into sksresponse(useraccountID,rawresponse) values(?,?)",(useraccountID,rawresponse))
         conn.commit()
         command = 'Select * from sksresponse order by queryid desc LIMIT 1'
         c.execute(command)
         row = c.fetchone()
         return row[0]
 
-def sks_search(userip, origin, destination,apikey=skyscannerkey):
+def sks_search(useraccountID, userip, origin, destination,apikey=skyscannerkey):
     headers = {'Accept': 'application/json',
                'X-Forwarded-For': userip}
     url = 'http://partners.api.skyscanner.net/apiservices/browsequotes/v1.0/US/USD/en-US/{}-Iata/{}-Iata/anytime/anytime/?apiKey={}'.format(origin,destination,apikey)
     r = requests.get(url, headers=headers)
     update_api_history(apiID=6,numcalls=1)
-    queryID = update_sks_response(r.text)
+    queryID = update_sks_response(useraccountID,r.text)
     if r.status_code == 200:
         #print json.dumps(r.json(), indent=4)
         response = r.json()
@@ -460,6 +460,16 @@ def sks_search(userip, origin, destination,apikey=skyscannerkey):
     else:
         print r.status_code
         print json.dumps(r.json(), indent=4)
+
+def get_users():
+    c = conn.cursor()
+    c.execute('select * from useraccount')
+    rows=c.fetchall()
+    users = []
+    for r in rows:
+        users.append({'useraccountid':r[0],'emailaddress':r[1],'created':r[2]})
+    return users
+
 
 if __name__ == '__main__':
 
@@ -569,12 +579,12 @@ if __name__ == '__main__':
 
     ############################################################################
     #SKS Search
-    useraccountid = '9e6b6207-31a3-481e-b5e3-5754fdcd222a'
-    routes = get_user_preferences(useraccountid)
-    for r in routes:
-        print r
-        sks_search(userip='100.34.202.47',origin=r[0],destination=r[1])
-        print 'beginning next search . . .'
+    users = get_users()
+    for u in users:
+        routes = get_user_preferences(u['useraccountid'])
+        for r in routes:
+            print r
+            sks_search(useraccountID = u['useraccountid'], userip='100.34.202.47',origin=r[0],destination=r[1])
 
 
     ############################################################################
@@ -628,7 +638,7 @@ if __name__ == '__main__':
     #parsedjson = json.loads(json.dumps(jsonbody))
 
     
-    #r = qpx_search(json.dumps(jsonbody))
+    #r = qpx_search(useraccountID='9e6b6207-31a3-481e-b5e3-5754fdcd222a',jsonquery=json.dumps(jsonbody))
     ## Next we must construct a request based on stored user input, instead of hardcoding it
 
 
