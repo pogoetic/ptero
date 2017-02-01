@@ -147,6 +147,7 @@ def nearby_airports(citycode,distance=150,primaryairports=1,apikey=iatakey):
 def qpx_parse(response, verbose=False):
     #Parse qpx Response
 
+    #https://qpx-express-demo.itasoftware.com/
     #c.execute('Select rawresponse from qpxresponse where substr(created,0,11) = date(\'now\') order by created desc')
     #row = c.fetchone()
     #print json.dumps(json.loads(row[0]),indent=4)
@@ -383,6 +384,83 @@ def get_user_preferences(useraccountid):
         routes.append([r[1],r[2]])
     return routes
 
+def update_sks_response(rawresponse):
+        c = conn.cursor()   
+        #command = "Insert Into qpxresponse(rawresponse) values(\'{}\');".format(rawresponse)
+        c.execute("Insert Into sksresponse(rawresponse) values(?)",(rawresponse,))
+        conn.commit()
+        command = 'Select * from sksresponse order by queryid desc LIMIT 1'
+        c.execute(command)
+        row = c.fetchone()
+        return row[0]
+
+def sks_search(userip, origin, destination,apikey=skyscannerkey):
+    headers = {'Accept': 'application/json',
+               'X-Forwarded-For': userip}
+    url = 'http://partners.api.skyscanner.net/apiservices/browsequotes/v1.0/US/USD/en-US/{}-Iata/{}-Iata/anytime/anytime/?apiKey={}'.format(origin,destination,apikey)
+    r = requests.get(url, headers=headers)
+    update_api_history(apiID=6,numcalls=1)
+    queryID = update_sks_response(r.text)
+    if r.status_code == 200:
+        #print json.dumps(r.json(), indent=4)
+        response = r.json()
+        
+        for x in response['Carriers']:
+            command = "Update airlines Set skscarrierID = {} where name = \'{}\'".format(x['CarrierId'],x['Name'])
+            c.execute(command)
+            conn.commit()
+
+        for x in response['Places']:
+            command = "Update airports Set sksplaceID = {} where code = \'{}\'".format(x['PlaceId'],x['IataCode'])
+            c.execute(command)
+            conn.commit()
+
+        for q in response['Quotes']:
+            d1 = dateutil.parser.parse(q['QuoteDateTime']) 
+            d2 = dateutil.parser.parse(q['OutboundLeg']['DepartureDate']) 
+            d3 = dateutil.parser.parse(q['InboundLeg']['DepartureDate']) 
+
+            if q['Direct'] == True:
+                direct = 1
+            else: 
+                direct = 0
+
+            if len(q['OutboundLeg']['CarrierIds'])>0:
+                out_carrierID = q['OutboundLeg']['CarrierIds'][0]
+            else: 
+                out_carrierID = 'NULL'
+            
+            if len(q['InboundLeg']['CarrierIds'])>0:
+                in_carrierID = q['InboundLeg']['CarrierIds'][0]
+            else:
+                in_carrierID = 'NULL'
+            
+            command = """Insert Into sksquotes(queryID,quoteID,quotedatetime,minprice,direct,out_carrierID,out_originID,out_destinationID,out_departuredate,in_carrierID,in_originID,in_destinationID,in_departuredate) 
+                    VALUES({queryID},{quoteID},\'{quotedatetime}\',{minprice},{direct},{out_carrierID},{out_originID},{out_destinationID},\'{out_departuredate}\',{in_carrierID},{in_originID},{in_destinationID},\'{in_departuredate}\')""".format(queryID=queryID,
+                    quoteID=q['QuoteId'],
+                    quotedatetime=d1.strftime('%Y-%m-%d %X'),
+                    minprice=q['MinPrice'],
+                    direct=direct,
+                    out_carrierID=out_carrierID,
+                    out_originID=q['OutboundLeg']['OriginId'],
+                    out_destinationID=q['OutboundLeg']['DestinationId'],
+                    out_departuredate=d2.strftime('%Y-%m-%d %X'),
+                    in_carrierID=in_carrierID,
+                    in_originID=q['InboundLeg']['OriginId'],
+                    in_destinationID=q['InboundLeg']['DestinationId'],
+                    in_departuredate=d3.strftime('%Y-%m-%d %X'))
+            try:
+                c.execute(command)
+                conn.commit()
+            except:
+                print 'error here'
+                conn.rollback()
+                conn.close
+                exit()
+    else:
+        print r.status_code
+        print json.dumps(r.json(), indent=4)
+
 if __name__ == '__main__':
 
     ############################################################################
@@ -491,92 +569,12 @@ if __name__ == '__main__':
 
     ############################################################################
     #SKS Search
-
-    def update_sks_response(rawresponse):
-        c = conn.cursor()   
-        #command = "Insert Into qpxresponse(rawresponse) values(\'{}\');".format(rawresponse)
-        c.execute("Insert Into sksresponse(rawresponse) values(?)",(rawresponse,))
-        conn.commit()
-        command = 'Select * from sksresponse order by queryid desc LIMIT 1'
-        c.execute(command)
-        row = c.fetchone()
-        return row[0]
-
-    def sks_search(userip, origin, destination,apikey=skyscannerkey):
-        headers = {'Accept': 'application/json',
-                   'X-Forwarded-For': userip}
-        url = 'http://partners.api.skyscanner.net/apiservices/browsequotes/v1.0/US/USD/en-US/{}-Iata/{}-Iata/anytime/anytime/?apiKey={}'.format(origin,destination,apikey)
-        r = requests.get(url, headers=headers)
-        update_api_history(apiID=6,numcalls=1)
-        queryID = update_sks_response(r.text)
-        if r.status_code == 200:
-            #print json.dumps(r.json(), indent=4)
-            response = r.json()
-            
-            for x in response['Carriers']:
-                print x['CarrierId']
-                print x['Name']
-                command = "Update airlines Set skscarrierID = {} where name = \'{}\'".format(x['CarrierId'],x['Name'])
-                c.execute(command)
-                conn.commit()
-
-            for q in response['Quotes']:
-                print q['QuoteId']
-                d1 = dateutil.parser.parse(q['QuoteDateTime']) 
-                print d1.strftime('%Y-%m-%d %X')
-                print q['MinPrice']
-                if q['Direct'] == True:
-                    direct = 1
-                else: 
-                    direct = 0
-                print q['Direct']
-                if q['OutboundLeg']['CarrierIds']:
-                    print q['OutboundLeg']['CarrierIds'][0]
-                    out_carrierID = q['OutboundLeg']['CarrierIds'][0]
-                print q['OutboundLeg']['OriginId']
-                print q['OutboundLeg']['DestinationId']
-                d2 = dateutil.parser.parse(q['OutboundLeg']['DepartureDate']) 
-                print d2.strftime('%Y-%m-%d %X')
-                if q['InboundLeg']['CarrierIds']:
-                    print q['InboundLeg']['CarrierIds'][0]
-                    in_carrierID = q['InboundLeg']['CarrierIds'][0]
-                print q['InboundLeg']['OriginId']
-                print q['InboundLeg']['DestinationId']
-                d3 = dateutil.parser.parse(q['InboundLeg']['DepartureDate']) 
-                print d3.strftime('%Y-%m-%d %X')
-
-                command = """Insert Into sksquotes(queryID,quoteID,quotedatetime,minprice,direct,out_carrierID,out_originID,out_destinationID,out_departuredate,in_carrierID,in_originID,in_destinationID,in_departuredate) 
-                        VALUES({queryID},{quoteID},\'{quotedatetime}\',{minprice},{direct},{out_carrierID},{out_originID},{out_destinationID},\'{out_departuredate}\',{in_carrierID},{in_originID},{in_destinationID},\'{in_departuredate}\')""".format(queryID=queryID,
-                        quoteID=q['QuoteId'],
-                        quotedatetime=d1.strftime('%Y-%m-%d %X'),
-                        minprice=q['MinPrice'],
-                        direct=direct,
-                        out_carrierID=out_carrierID,
-                        out_originID=q['OutboundLeg']['OriginId'],
-                        out_destinationID=q['OutboundLeg']['DestinationId'],
-                        out_departuredate=d2.strftime('%Y-%m-%d %X'),
-                        in_carrierID=in_carrierID,
-                        in_originID=q['InboundLeg']['OriginId'],
-                        in_destinationID=q['InboundLeg']['DestinationId'],
-                        in_departuredate=d3.strftime('%Y-%m-%d %X'))
-                print command
-                try:
-                    c.execute(command)
-                    conn.commit()
-                except:
-                    conn.rollback()
-                    conn.close
-                    exit()
-
-            conn.close
-            exit()
-
     useraccountid = '9e6b6207-31a3-481e-b5e3-5754fdcd222a'
     routes = get_user_preferences(useraccountid)
-
     for r in routes:
         print r
         sks_search(userip='100.34.202.47',origin=r[0],destination=r[1])
+        print 'beginning next search . . .'
 
 
     ############################################################################
