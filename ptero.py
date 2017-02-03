@@ -1,5 +1,5 @@
 
-import requests, sqlite3, json, ConfigParser, uuid
+import requests, sqlite3, json, ConfigParser, uuid, time
 import datetime, dateutil.parser
 
 #Keys
@@ -27,7 +27,8 @@ def data_reset(reset=False):
     if reset == True:
         c = conn.cursor()
         table = ['apilimit','apihistory','qpxresponse','useraccount','userorigin',
-                 'userdestination','qpxresponse','qpxtrip','qpxsegment','qpxleg']
+                 'userdestination','qpxresponse','qpxtrip','qpxsegment','qpxleg',
+                 'sksresponse','sksquotes','seasons']
         for t in table:
             if table_exists(t) == True:
                 print 'Dropping Table {}'.format(t)
@@ -94,7 +95,7 @@ def create_user_account(emailaddress):
     except:
         return None
 
-def create_user_route(useraccountid,o_or_d,cityID,airportID):
+def create_user_route(useraccountid,o_or_d,cityID,airportID,seasonID='NULL'):
     if o_or_d == 'o':
         table = 'userorigin'
         col = 'origincityid'
@@ -108,7 +109,7 @@ def create_user_route(useraccountid,o_or_d,cityID,airportID):
 
     try:
         c = conn.cursor()   
-        c.execute('Insert Into {}(useraccountid, {}, airportID) Values(\'{}\',{},{})'.format(table,col,useraccountid,cityID,airportID))
+        c.execute('Insert Into {}(useraccountid, {}, airportID, seasonID) Values(\'{}\',{},{},{})'.format(table,col,useraccountid,cityID,airportID,seasonID))
         conn.commit()
         c.execute('Select {} from {} where useraccountid = \'{}\' Order by created desc LIMIT 1'.format(col2,table, useraccountid))
         row = c.fetchone()
@@ -372,16 +373,18 @@ def get_user_preferences(useraccountid):
     #Query to get unique combinations of Origin/Destinations for a user
     #Add in the future to return preferred airlines, travel seasons, length of trip, etc...
     c = conn.cursor()
-    command = """Select uo.useraccountID, a1.code as origincode, a2.code as destinationcode
-             from userorigin uo 
-             join userdestination ud on ud.useraccountid = uo.useraccountid 
-             left join airports a1 on a1.airportID = uo.airportID 
-             left join airports a2 on a2.airportID = ud.airportID """
+    command = """Select uo.useraccountID, a1.code as origincode, a2.code as destinationcode,
+                s.monthnum1,s.monthnum2,s.monthnum3 
+                from userorigin uo 
+                join userdestination ud on ud.useraccountid = uo.useraccountid 
+                join seasons s on s.seasonID = ud.seasonID
+                left join airports a1 on a1.airportID = uo.airportID 
+                left join airports a2 on a2.airportID = ud.airportID """
     c.execute(command)
     rows = c.fetchall()
     routes = []
     for r in rows:
-        routes.append([r[1],r[2]])
+        routes.append([r[1],r[2],r[3],r[4],r[5]])
     return routes
 
 def update_sks_response(useraccountID,rawresponse):
@@ -457,6 +460,9 @@ def sks_search(useraccountID, userip, origin, destination,apikey=skyscannerkey):
                 conn.rollback()
                 conn.close
                 exit()
+    elif r.status_code == 429:
+        print '429 - Too Many Requests'
+        time.sleep(1)
     else:
         print r.status_code
         print json.dumps(r.json(), indent=4)
@@ -480,34 +486,34 @@ if __name__ == '__main__':
     c = conn.cursor()
     if table_exists('apilimit') == False:
         #c.execute('Drop Table apilimit')
-        c.execute('Create Table IF NOT EXISTS apilimit(apiID int,apicode varchar(20),apiname varchar(100),dailylimit int)')
-        command = 'Insert Into apilimit(apiID, apicode, apiname, dailylimit) Values({},\'{}\',\'{}\',{})'.format('1','QPX','Google QPX Express API',50)
+        c.execute('CREATE TABLE IF NOT EXISTS apilimit(apiID int,apicode varchar(20),apiname varchar(100),dailylimit int)')
+        command = 'INSERT INTO apilimit(apiID, apicode, apiname, dailylimit) Values({},\'{}\',\'{}\',{})'.format('1','QPX','Google QPX Express API',50)
         c.execute(command)
-        command = 'Insert Into apilimit(apiID, apicode, apiname, dailylimit) Values({},\'{}\',\'{}\',{})'.format('2','GEO','Google Maps Geocode API',2500)
+        command = 'INSERT INTO apilimit(apiID, apicode, apiname, dailylimit) Values({},\'{}\',\'{}\',{})'.format('2','GEO','Google Maps Geocode API',2500)
         c.execute(command)
         conn.commit()
 
     if table_exists('apihistory') == False:
         #c.execute('Drop Table apihistory') 
-        c.execute('Create Table IF NOT EXISTS apihistory(apiID int, date date, numcalls int)')
+        c.execute('CREATE TABLE IF NOT EXISTS apihistory(apiID int, date date, numcalls int)')
         c.execute('CREATE UNIQUE INDEX {ix} on {tn}({cn},{cn2})'.format(ix='IDX_apihistory', tn='apihistory', cn='apiID', cn2='date'))
         conn.commit()
 
     if table_exists('qpxresponse') == False:
         #c.execute('Drop Table qpxresponse')
-        command = 'Create Table IF NOT EXISTS qpxresponse(queryid INTEGER PRIMARY KEY, rawresponse BLOB, created DATETIME DEFAULT (DATETIME(\'now\')), requestID TEXT)'
+        command = 'CREATE TABLE IF NOT EXISTS qpxresponse(queryid INTEGER PRIMARY KEY, rawresponse BLOB, created DATETIME DEFAULT (DATETIME(\'now\')), requestID TEXT)'
         c.execute(command)
         conn.commit()
 
     if table_exists('useraccount') == False:
         #c.execute('Drop Table useraccount')
-        command = 'Create Table IF NOT EXISTS useraccount(useraccountid VARCHAR(36) PRIMARY KEY, emailaddress varchar(250), created DATETIME DEFAULT (DATETIME(\'now\')))'
+        command = 'CREATE TABLE IF NOT EXISTS useraccount(useraccountid VARCHAR(36) PRIMARY KEY, emailaddress varchar(250), created DATETIME DEFAULT (DATETIME(\'now\')))'
         c.execute(command)
         conn.commit()
         create_user_account('pogster@gmail.com')
 
     if table_exists('userorigin') == False:
-        command = 'Create Table IF NOT EXISTS userorigin(origininstanceID INTEGER PRIMARY KEY, useraccountid VARCHAR(36), origincityID, airportID, created DATETIME DEFAULT (DATETIME(\'now\')))'
+        command = 'CREATE TABLE IF NOT EXISTS userorigin(origininstanceID INTEGER PRIMARY KEY, useraccountid VARCHAR(36), origincityID, airportID, created DATETIME DEFAULT (DATETIME(\'now\')))'
         c.execute(command)
         command = 'CREATE UNIQUE INDEX {ix} on {tn}({cn},{cn2},{cn3})'.format(ix='IDX_userorigin', tn='userorigin', cn='useraccountid', cn2='origincityID', cn3='airportID')
         c.execute(command)
@@ -518,7 +524,7 @@ if __name__ == '__main__':
             create_user_route(useraccountid='9e6b6207-31a3-481e-b5e3-5754fdcd222a',o_or_d='o',cityID=cityid,airportID=a)
 
     if table_exists('userdestination') == False:
-        command = 'Create Table IF NOT EXISTS userdestination(destinationinstanceID INTEGER PRIMARY KEY, useraccountid VARCHAR(36), destinationcityID, airportID, created DATETIME DEFAULT (DATETIME(\'now\')))'
+        command = "CREATE TABLE IF NOT EXISTS userdestination(destinationinstanceID INTEGER PRIMARY KEY, useraccountid VARCHAR(36), destinationcityID, airportID, created DATETIME DEFAULT (DATETIME(\'now\')))"
         c.execute(command)
         command = 'CREATE UNIQUE INDEX {ix} on {tn}({cn},{cn2},{cn3})'.format(ix='IDX_userdestination', tn='userdestination', cn='useraccountid', cn2='destinationcityID', cn3='airportID')
         c.execute(command)
@@ -529,38 +535,49 @@ if __name__ == '__main__':
             create_user_route(useraccountid='9e6b6207-31a3-481e-b5e3-5754fdcd222a',o_or_d='d',cityID=cityid,airportID=a)
 
     if table_exists('qpxtrip') == False:
-        command = "Create Table IF NOT EXISTS qpxtrip('tripinstanceID` INTEGER PRIMARY KEY, `requestID` VARCHAR(12), `fareID` VARCHAR(500), `farebasiscode` VARCHAR(8), `tripoptionID` VARCHAR(25), `tripoption` INTEGER, `latestticketingtime` DATETIME, `origin` VARCHAR(3), `destination` VARCHAR(3), `price` DECIMAL(10,2), `currency` VARCHAR(3), `totalflightduration` INTEGER, 'connections' INTEGER, `adultcount` INTEGER, `seniorcount` INTEGER, `childcount` INTEGER, `infantinseatcount` INTEGER, `infantinlapcount` INTEGER, `created` INTEGER DEFAULT (DATETIME(\'now\')))"
+        command = "CREATE TABLE IF NOT EXISTS qpxtrip('tripinstanceID` INTEGER PRIMARY KEY, `requestID` VARCHAR(12), `fareID` VARCHAR(500), `farebasiscode` VARCHAR(8), `tripoptionID` VARCHAR(25), `tripoption` INTEGER, `latestticketingtime` DATETIME, `origin` VARCHAR(3), `destination` VARCHAR(3), `price` DECIMAL(10,2), `currency` VARCHAR(3), `totalflightduration` INTEGER, 'connections' INTEGER, `adultcount` INTEGER, `seniorcount` INTEGER, `childcount` INTEGER, `infantinseatcount` INTEGER, `infantinlapcount` INTEGER, `created` INTEGER DEFAULT (DATETIME(\'now\')))"
         c.execute(command)
         command = 'CREATE UNIQUE INDEX {ix} on {tn}({cn} DESC, {cn2} ASC})'.format(ix='IDX_qpxtrip', tn='qpxtrip', cn='requestID', cn2='tripoptionID')
         c.execute(command)
         conn.commit()   
 
     if table_exists('qpxsegment') == False:
-        command = "Create Table IF NOT EXISTS qpxsegment(`segmentinstanceID` INTEGER PRIMARY KEY, `requestID` VARCHAR(22), `tripoptionID` VARCHAR(25), `farebasiscode` VARCHAR(8), `segmentID` VARCHAR(16), `segmentcarrier` VARCHAR(2), `segmentflightnumber` VARCHAR(10), `cabin` VARCHAR(50), `bookingcode` VARCHAR(10), `bookingcodecount` INTEGER, `marriedsegmentcount` INTEGER, `connectionduration` INTEGER, `created` DATETIME DEFAULT DATETIME(\'now\'))"
+        command = "CREATE TABLE IF NOT EXISTS qpxsegment(`segmentinstanceID` INTEGER PRIMARY KEY, `requestID` VARCHAR(22), `tripoptionID` VARCHAR(25), `farebasiscode` VARCHAR(8), `segmentID` VARCHAR(16), `segmentcarrier` VARCHAR(2), `segmentflightnumber` VARCHAR(10), `cabin` VARCHAR(50), `bookingcode` VARCHAR(10), `bookingcodecount` INTEGER, `marriedsegmentcount` INTEGER, `connectionduration` INTEGER, `created` DATETIME DEFAULT DATETIME(\'now\'))"
         c.execute(command)
         command = 'CREATE UNIQUE INDEX {ix} on {tn}({cn} DESC,{cn2} ASC,{cn3} ASC)'.format(ix='IDX_qpxsegment', tn='qpxsegment', cn='requestID', cn2='tripoptionID', cn3='segmentID')
         c.execute(command)
         conn.commit()   
 
     if table_exists('qpxleg') == False:
-        command = "Create Table IF NOT EXISTS qpxleg(`leginstanceID` INTEGER UNIQUE, `requestID` VARCHAR(22), `tripoptionID` VARCHAR(25), `farebasiscode` VARCHAR(8), `segmentID` VARCHAR(16), `legID` VARCHAR(16), `aircraft` VARCHAR(3), `arrivaltime` DATETIME, `arrivaltimeutcoffset` INTEGER, `departuretime` DATETIME, `departuretimeutcoffset` INTEGER, `origin` VARCHAR(3), `originterminal` VARCHAR(5), `destination` VARCHAR(3), `destinationterminal` VARCHAR(5), `duration` INTEGER, `ontimeperformance` INTEGER, `mileage` INTEGER, `meal` VARCHAR(100), `secure` INTEGER, `changeplane` INTEGER, `created` DATETIME DEFAULT DATETIME(\'now\')"
+        command = "CREATE TABLE IF NOT EXISTS qpxleg(`leginstanceID` INTEGER UNIQUE, `requestID` VARCHAR(22), `tripoptionID` VARCHAR(25), `farebasiscode` VARCHAR(8), `segmentID` VARCHAR(16), `legID` VARCHAR(16), `aircraft` VARCHAR(3), `arrivaltime` DATETIME, `arrivaltimeutcoffset` INTEGER, `departuretime` DATETIME, `departuretimeutcoffset` INTEGER, `origin` VARCHAR(3), `originterminal` VARCHAR(5), `destination` VARCHAR(3), `destinationterminal` VARCHAR(5), `duration` INTEGER, `ontimeperformance` INTEGER, `mileage` INTEGER, `meal` VARCHAR(100), `secure` INTEGER, `changeplane` INTEGER, `created` DATETIME DEFAULT DATETIME(\'now\')"
         c.execute(command)
         command = 'CREATE UNIQUE INDEX {ix} on {tn}({cn} DESC,{cn2} ASC,{cn3} ASC)'.format(ix='IDX_qpxleg', tn='qpxleg', cn='requestID', cn2='tripoptionID',cn3='legID')
         c.execute(command)
         conn.commit()   
 
     if table_exists('sksresponse') == False:
-        command = 'Create Table IF NOT EXISTS sksresponse(queryid INTEGER PRIMARY KEY, rawresponse BLOB, created DATETIME DEFAULT (DATETIME(\'now\')))'
+        command = 'CREATE TABLE IF NOT EXISTS sksresponse(queryid INTEGER PRIMARY KEY, rawresponse BLOB, created DATETIME DEFAULT (DATETIME(\'now\')))'
         c.execute(command)
         conn.commit()
 
     if table_exists('sksquotes') == False:
-        command = "Create Table IF NOT EXISTS sksquotes(queryID INTEGER NOT NULL, quoteID INTEGER, quotedatetime datetime, minprice decimal(10,2), direct tinyint, out_carrierID INTEGER, out_originID INTEGER, out_destinationID INTEGER, out_departuredate datetime, in_carrierID INTEGER, in_originID INTEGER, in_destinationID INTEGER, in_departuredate datetime, created DATETIME DEFAULT(DATETIME(\'now\')))"
+        command = "CREATE TABLE IF NOT EXISTS sksquotes(queryID INTEGER NOT NULL, quoteID INTEGER, quotedatetime datetime, minprice decimal(10,2), direct tinyint, out_carrierID INTEGER, out_originID INTEGER, out_destinationID INTEGER, out_departuredate datetime, in_carrierID INTEGER, in_originID INTEGER, in_destinationID INTEGER, in_departuredate datetime, created DATETIME DEFAULT(DATETIME(\'now\')))"
         c.execute(command)
         command = "CREATE UNIQUE INDEX IDX_sksquotes ON sksquotes(queryID ,quoteID)"
         c.execute(command)
         conn.commit()
-        
+    
+    if table_exists('seasons') == False:
+        command = "CREATE TABLE IF NOT EXISTS seasons(seasonID INTEGER PRIMARY KEY, seasonname INTEGER, monthname1 TEXT, monthname2 TEXT, monthname3 TEXT, monthnum1 INTEGER, monthnum2 INTEGER, monthnum3 INTEGER, created DATETIME DEFAULT (DATETIME(\'now\')))"
+        c.execute(command)
+        command = """Insert into seasons (seasonname,monthname1,monthname2,monthname3,monthnum1,monthnum2,monthnum3) values ('Spring','March','April','May',3,4,5);
+                    Insert into seasons (seasonname,monthname1,monthname2,monthname3,monthnum1,monthnum2,monthnum3) values ('Summer','June','July','August',6,7,8);
+                    Insert into seasons (seasonname,monthname1,monthname2,monthname3,monthnum1,monthnum2,monthnum3) values ('Fall','September','October','November',9,10,11);
+                    Insert into seasons (seasonname,monthname1,monthname2,monthname3,monthnum1,monthnum2,monthnum3) values ('Winter','December','January','February',12,1,2);
+                    """
+        c.execute(command)
+        conn.commit()
+
     ############################################################################
     #User Settings
 
@@ -575,7 +592,7 @@ if __name__ == '__main__':
     #create destinations
     cityid, airports = nearby_airports(citycode='REK')
     for a in airports:
-        create_user_route(useraccountid='9e6b6207-31a3-481e-b5e3-5754fdcd222a',o_or_d='d',cityID=cityid,airportID=a)
+        create_user_route(useraccountid='9e6b6207-31a3-481e-b5e3-5754fdcd222a',o_or_d='d',cityID=cityid,airportID=a,seasonID=2)
 
     ############################################################################
     #SKS Search
@@ -584,7 +601,12 @@ if __name__ == '__main__':
         routes = get_user_preferences(u['useraccountid'])
         for r in routes:
             print r
-            sks_search(useraccountID = u['useraccountid'], userip='100.34.202.47',origin=r[0],destination=r[1])
+            sks_search(useraccountID=u['useraccountid'], userip='100.34.202.47',origin=r[0],destination=r[1])
+#NEED TO ADD SEASONS TO SKS_SEARCH
+
+    command = "SELECT ud.*,s.seasonname,s.monthnum1,s.monthnum2,s.monthnum3 from userdestination ud join seasons s on s.seasonID = ud.seasonID"
+
+
 
 
     ############################################################################
