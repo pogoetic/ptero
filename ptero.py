@@ -95,7 +95,7 @@ def create_user_account(emailaddress):
     except:
         return None
 
-def create_user_route(useraccountid,o_or_d,cityID,airportID,seasonID='NULL'):
+def create_user_route(useraccountid,o_or_d,cityID,airportID,seasons=[]):
     if o_or_d == 'o':
         table = 'userorigin'
         col = 'origincityid'
@@ -107,9 +107,22 @@ def create_user_route(useraccountid,o_or_d,cityID,airportID,seasonID='NULL'):
     else: 
         return None
 
+    try: 
+        season1 = seasons[0]
+    except IndexError:
+        season1 = 'NULL'
+    try: 
+        season2 = seasons[1]
+    except IndexError:
+        season2 = 'NULL'
+    try: 
+        season3 = seasons[2]
+    except IndexError:
+        season3 = 'NULL'
+
     try:
         c = conn.cursor()   
-        c.execute('Insert Into {}(useraccountid, {}, airportID, seasonID) Values(\'{}\',{},{},{})'.format(table,col,useraccountid,cityID,airportID,seasonID))
+        c.execute('Insert Into {}(useraccountid, {}, airportID, season1ID, season2ID, season3ID) Values(\'{}\',{},{},{s1},{s2},{s3})'.format(table,col,useraccountid,cityID,airportID,s1=season1,s2=season2,s3=season3))
         conn.commit()
         c.execute('Select {} from {} where useraccountid = \'{}\' Order by created desc LIMIT 1'.format(col2,table, useraccountid))
         row = c.fetchone()
@@ -373,18 +386,23 @@ def get_user_preferences(useraccountid):
     #Query to get unique combinations of Origin/Destinations for a user
     #Add in the future to return preferred airlines, travel seasons, length of trip, etc...
     c = conn.cursor()
-    command = """Select uo.useraccountID, a1.code as origincode, a2.code as destinationcode,
-                s.monthnum1,s.monthnum2,s.monthnum3 
+    command = """--See users preferences
+                Select uo.useraccountID, a1.code as origincode, a2.code as destinationcode,
+                s.monthnum1,s.monthnum2,s.monthnum3,
+                s2.monthnum1 as monthnum4,s2.monthnum2 as monthnum5,s2.monthnum3 as monthnum6,
+                s3.monthnum1 as monthnum7,s3.monthnum2 as monthnum8,s3.monthnum3 as monthnum9
                 from userorigin uo 
                 join userdestination ud on ud.useraccountid = uo.useraccountid 
-                join seasons s on s.seasonID = ud.seasonID
+                left join seasons s on s.seasonID = ud.season1ID
+                left join seasons s2 on s2.seasonID = ud.season2ID
+                left join seasons s3 on s3.seasonID = ud.season3ID
                 left join airports a1 on a1.airportID = uo.airportID 
                 left join airports a2 on a2.airportID = ud.airportID """
     c.execute(command)
     rows = c.fetchall()
     routes = []
     for r in rows:
-        routes.append([r[1],r[2],r[3],r[4],r[5]])
+        routes.append([r[1],r[2], [r[3],r[4],r[5],r[6],r[7],r[8],r[9],r[10],r[11]] ])
     return routes
 
 def update_sks_response(useraccountID,rawresponse):
@@ -397,10 +415,20 @@ def update_sks_response(useraccountID,rawresponse):
         row = c.fetchone()
         return row[0]
 
-def sks_search(useraccountID, userip, origin, destination,apikey=skyscannerkey):
+def sks_search(useraccountID, userip, origin, destination, month=None, apikey=skyscannerkey):
     headers = {'Accept': 'application/json',
                'X-Forwarded-For': userip}
-    url = 'http://partners.api.skyscanner.net/apiservices/browsequotes/v1.0/US/USD/en-US/{}-Iata/{}-Iata/anytime/anytime/?apiKey={}'.format(origin,destination,apikey)
+    if month != None:
+        year = time.strftime("%Y")
+        current_month = time.strftime("%m")
+        if current_month > month:
+            year = year+1
+        period = str(year)+'-'+str(month).zfill(2)
+        url = 'http://partners.api.skyscanner.net/apiservices/browsequotes/v1.0/US/USD/en-US/{}-Iata/{}-Iata/{}/anytime/?apiKey={}'.format(origin,destination,period,apikey)
+        print url
+    else:
+        url = 'http://partners.api.skyscanner.net/apiservices/browsequotes/v1.0/US/USD/en-US/{}-Iata/{}-Iata/anytime/anytime/?apiKey={}'.format(origin,destination,apikey)
+    
     while True:
         r = requests.get(url, headers=headers)
         update_api_history(apiID=6,numcalls=1)
@@ -596,7 +624,7 @@ if __name__ == '__main__':
     #create destinations
     cityid, airports = nearby_airports(citycode='REK')
     for a in airports:
-        create_user_route(useraccountid='9e6b6207-31a3-481e-b5e3-5754fdcd222a',o_or_d='d',cityID=cityid,airportID=a,seasonID=2)
+        create_user_route(useraccountid='9e6b6207-31a3-481e-b5e3-5754fdcd222a',o_or_d='d',cityID=cityid,airportID=a,seasons=[1,2])
 
     ############################################################################
     #SKS Search
@@ -605,8 +633,12 @@ if __name__ == '__main__':
         routes = get_user_preferences(u['useraccountid'])
         for r in routes:
             print r
-            sks_search(useraccountID=u['useraccountid'], userip='100.34.202.47',origin=r[0],destination=r[1])
-#NEED TO ADD SEASONS TO SKS_SEARCH
+            try: #loop through specified months
+                for m in r[2]:
+                    print m
+                    sks_search(useraccountID=u['useraccountid'], userip='100.34.202.47',origin=r[0],destination=r[1],month=m)
+            except: #no months specified
+                sks_search(useraccountID=u['useraccountid'], userip='100.34.202.47',origin=r[0],destination=r[1])
 
 
     ############################################################################
