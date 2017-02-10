@@ -401,71 +401,75 @@ def sks_search(useraccountID, userip, origin, destination,apikey=skyscannerkey):
     headers = {'Accept': 'application/json',
                'X-Forwarded-For': userip}
     url = 'http://partners.api.skyscanner.net/apiservices/browsequotes/v1.0/US/USD/en-US/{}-Iata/{}-Iata/anytime/anytime/?apiKey={}'.format(origin,destination,apikey)
-    r = requests.get(url, headers=headers)
-    update_api_history(apiID=6,numcalls=1)
-    queryID = update_sks_response(useraccountID,r.text)
-    if r.status_code == 200:
-        #print json.dumps(r.json(), indent=4)
-        response = r.json()
-        
-        for x in response['Carriers']:
-            command = "Update airlines Set skscarrierID = {} where name = \'{}\'".format(x['CarrierId'],x['Name'])
-            c.execute(command)
-            conn.commit()
-
-        for x in response['Places']:
-            command = "Update airports Set sksplaceID = {} where code = \'{}\'".format(x['PlaceId'],x['IataCode'])
-            c.execute(command)
-            conn.commit()
-
-        for q in response['Quotes']:
-            d1 = dateutil.parser.parse(q['QuoteDateTime']) 
-            d2 = dateutil.parser.parse(q['OutboundLeg']['DepartureDate']) 
-            d3 = dateutil.parser.parse(q['InboundLeg']['DepartureDate']) 
-
-            if q['Direct'] == True:
-                direct = 1
-            else: 
-                direct = 0
-
-            if len(q['OutboundLeg']['CarrierIds'])>0:
-                out_carrierID = q['OutboundLeg']['CarrierIds'][0]
-            else: 
-                out_carrierID = 'NULL'
+    while True:
+        r = requests.get(url, headers=headers)
+        update_api_history(apiID=6,numcalls=1)
+        queryID = update_sks_response(useraccountID,r.text)
+        if r.status_code == 200:
+            #print json.dumps(r.json(), indent=4)
+            response = r.json()
             
-            if len(q['InboundLeg']['CarrierIds'])>0:
-                in_carrierID = q['InboundLeg']['CarrierIds'][0]
-            else:
-                in_carrierID = 'NULL'
-            
-            command = """Insert Into sksquotes(queryID,quoteID,quotedatetime,minprice,direct,out_carrierID,out_originID,out_destinationID,out_departuredate,in_carrierID,in_originID,in_destinationID,in_departuredate) 
-                    VALUES({queryID},{quoteID},\'{quotedatetime}\',{minprice},{direct},{out_carrierID},{out_originID},{out_destinationID},\'{out_departuredate}\',{in_carrierID},{in_originID},{in_destinationID},\'{in_departuredate}\')""".format(queryID=queryID,
-                    quoteID=q['QuoteId'],
-                    quotedatetime=d1.strftime('%Y-%m-%d %X'),
-                    minprice=q['MinPrice'],
-                    direct=direct,
-                    out_carrierID=out_carrierID,
-                    out_originID=q['OutboundLeg']['OriginId'],
-                    out_destinationID=q['OutboundLeg']['DestinationId'],
-                    out_departuredate=d2.strftime('%Y-%m-%d %X'),
-                    in_carrierID=in_carrierID,
-                    in_originID=q['InboundLeg']['OriginId'],
-                    in_destinationID=q['InboundLeg']['DestinationId'],
-                    in_departuredate=d3.strftime('%Y-%m-%d %X'))
-            try:
+            for x in response['Carriers']:
+                command = "Update airlines Set skscarrierID = {} where name = \'{}\'".format(x['CarrierId'],x['Name'])
                 c.execute(command)
                 conn.commit()
-            except:
-                print 'error here'
-                conn.rollback()
-                conn.close
-                exit()
-    elif r.status_code == 429:
-        print '429 - Too Many Requests'
-        time.sleep(1)
-    else:
-        print r.status_code
-        print json.dumps(r.json(), indent=4)
+
+            for x in response['Places']:
+                command = "Update airports Set sksplaceID = {} where code = \'{}\'".format(x['PlaceId'],x['IataCode'])
+                c.execute(command)
+                conn.commit()
+
+            for q in response['Quotes']:
+                d1 = dateutil.parser.parse(q['QuoteDateTime']) 
+                d2 = dateutil.parser.parse(q['OutboundLeg']['DepartureDate']) 
+                d3 = dateutil.parser.parse(q['InboundLeg']['DepartureDate']) 
+
+                if q['Direct'] == True:
+                    direct = 1
+                else: 
+                    direct = 0
+
+                if len(q['OutboundLeg']['CarrierIds'])>0:
+                    out_carrierID = q['OutboundLeg']['CarrierIds'][0]
+                else: 
+                    out_carrierID = 'NULL'
+                
+                if len(q['InboundLeg']['CarrierIds'])>0:
+                    in_carrierID = q['InboundLeg']['CarrierIds'][0]
+                else:
+                    in_carrierID = 'NULL'
+                
+                command = """Insert Into sksquotes(queryID,quoteID,quotedatetime,minprice,direct,out_carrierID,out_originID,out_destinationID,out_departuredate,in_carrierID,in_originID,in_destinationID,in_departuredate) 
+                        VALUES({queryID},{quoteID},\'{quotedatetime}\',{minprice},{direct},{out_carrierID},{out_originID},{out_destinationID},\'{out_departuredate}\',{in_carrierID},{in_originID},{in_destinationID},\'{in_departuredate}\')""".format(queryID=queryID,
+                        quoteID=q['QuoteId'],
+                        quotedatetime=d1.strftime('%Y-%m-%d %X'),
+                        minprice=q['MinPrice'],
+                        direct=direct,
+                        out_carrierID=out_carrierID,
+                        out_originID=q['OutboundLeg']['OriginId'],
+                        out_destinationID=q['OutboundLeg']['DestinationId'],
+                        out_departuredate=d2.strftime('%Y-%m-%d %X'),
+                        in_carrierID=in_carrierID,
+                        in_originID=q['InboundLeg']['OriginId'],
+                        in_destinationID=q['InboundLeg']['DestinationId'],
+                        in_departuredate=d3.strftime('%Y-%m-%d %X'))
+                try:
+                    c.execute(command)
+                    conn.commit()
+                except:
+                    print 'error here'
+                    conn.rollback()
+                    conn.close
+                    exit()
+            break
+        elif r.status_code == 429:
+            print '429 - Too Many Requests'
+            time.sleep(1)
+            #No Break = Retry
+        else:
+            print r.status_code
+            print json.dumps(r.json(), indent=4)
+            break
 
 def get_users():
     c = conn.cursor()
@@ -603,10 +607,6 @@ if __name__ == '__main__':
             print r
             sks_search(useraccountID=u['useraccountid'], userip='100.34.202.47',origin=r[0],destination=r[1])
 #NEED TO ADD SEASONS TO SKS_SEARCH
-
-    command = "SELECT ud.*,s.seasonname,s.monthnum1,s.monthnum2,s.monthnum3 from userdestination ud join seasons s on s.seasonID = ud.seasonID"
-
-
 
 
     ############################################################################
