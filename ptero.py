@@ -424,11 +424,10 @@ def sks_search(useraccountID, userip, origin, destination, month=None, apikey=sk
         if int(current_month) > int(month):
             year = year+1
         period = str(year)+'-'+str(month).zfill(2)
-        url = 'http://partners.api.skyscanner.net/apiservices/browsequotes/v1.0/US/USD/en-US/{}-Iata/{}-Iata/{}/anytime/?apiKey={}'.format(origin,destination,period,apikey)
-        print url
+        url = 'http://partners.api.skyscanner.net/apiservices/browsedates/v1.0/US/USD/en-US/{}-Iata/{}-Iata/{}/{}/?apiKey={}'.format(origin,destination,period,period,apikey)
     else:
-        url = 'http://partners.api.skyscanner.net/apiservices/browsequotes/v1.0/US/USD/en-US/{}-Iata/{}-Iata/anytime/anytime/?apiKey={}'.format(origin,destination,apikey)
-    
+        url = 'http://partners.api.skyscanner.net/apiservices/browsedates/v1.0/US/USD/en-US/{}-Iata/{}-Iata/anytime/anytime/?apiKey={}'.format(origin,destination,apikey)
+
     while True:
         r = requests.get(url, headers=headers)
         update_api_history(apiID=6,numcalls=1)
@@ -635,10 +634,14 @@ if __name__ == '__main__':
             print r
             try: #loop through specified months
                 for m in r[2]:
-                    print m
-                    sks_search(useraccountID=u['useraccountid'], userip='100.34.202.47',origin=r[0],destination=r[1],month=m)
-            except: #no months specified
+                    print m, u['useraccountid']
+                    if m!=None:
+                        sks_search(useraccountID=u['useraccountid'], userip='100.34.202.47',origin=r[0],destination=r[1],month=m)
+            except Exception as err: #no months specified
+                raise err
                 sks_search(useraccountID=u['useraccountid'], userip='100.34.202.47',origin=r[0],destination=r[1])
+
+
 
 
     ############################################################################
