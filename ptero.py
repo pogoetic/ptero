@@ -421,7 +421,7 @@ def sks_search(useraccountID, userip, origin, destination, month=None, apikey=sk
     if month != None:
         year = time.strftime("%Y")
         current_month = time.strftime("%m")
-        if current_month > month:
+        if int(current_month) > int(month):
             year = year+1
         period = str(year)+'-'+str(month).zfill(2)
         url = 'http://partners.api.skyscanner.net/apiservices/browsequotes/v1.0/US/USD/en-US/{}-Iata/{}-Iata/{}/anytime/?apiKey={}'.format(origin,destination,period,apikey)
