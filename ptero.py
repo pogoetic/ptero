@@ -638,7 +638,7 @@ if __name__ == '__main__':
                     if m!=None:
                         sks_search(useraccountID=u['useraccountid'], userip='100.34.202.47',origin=r[0],destination=r[1],month=m)
             except Exception as err: #no months specified
-                raise err
+                print err
                 sks_search(useraccountID=u['useraccountid'], userip='100.34.202.47',origin=r[0],destination=r[1])
 
 
