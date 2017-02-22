@@ -1,5 +1,5 @@
 
-import requests, sqlite3, json, ConfigParser, time, datetime
+import requests, sqlite3, json, ConfigParser, time, datetime, pyodbc
 from dateutil.parser import parse
 from dateutil.relativedelta import *
 from dateutil import tz
@@ -13,6 +13,15 @@ iatakey = config.get("API", "iatakey")
 geocodekey = config.get("API", "geocodekey")
 
 conn = sqlite3.connect('pterodb')
+conn2 = pyodbc.connect('DRIVER='{ODBC Driver 13 for SQL Server}';PORT=1433;SERVER='+config.get("DB","server")+';PORT=1443;DATABASE='+config.get("DB","database")+';UID='+config.get("DB","uname")+';PWD='+ config.get("DB","pwd"))
+cursor = conn2.cursor()
+cursor.execute("select @@VERSION")
+row = cursor.fetchone()
+if row:
+    print row
+
+exit()
+
 data_resetflag = False
 
 def data_reset(reset=False):
@@ -200,7 +209,7 @@ if __name__ == '__main__':
         conn.commit()
         print 'Table ariports Created!'
 
-        command = 'Create Table IF NOT EXISTS airlines(airlineID INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT UNIQUE, code varchar(2), name varchar(100), created DATETIME DEFAULT (DATETIME(\'now\')))'
+        command = 'Create Table IF NOT EXISTS airlines(airlineID INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT UNIQUE, code varchar(2), name varchar(100), created DATETIME DEFAULT (DATETIME(\'now\')), skscarrierID INTEGER NULL)'
         c.execute(command)
         command = 'CREATE UNIQUE INDEX IDX_airlines ON airlines (code ASC)'
         c.execute(command)

@@ -437,12 +437,12 @@ def sks_search(useraccountID, userip, origin, destination, month=None, apikey=sk
             response = r.json()
             
             for x in response['Carriers']:
-                command = "Update airlines Set skscarrierID = {} where name = \'{}\'".format(x['CarrierId'],x['Name'])
+                command = "Update airlines Set skscarrierID = {} where skscarrierID IS NULL and name = \'{}\'".format(x['CarrierId'],x['Name'])
                 c.execute(command)
                 conn.commit()
 
             for x in response['Places']:
-                command = "Update airports Set sksplaceID = {} where code = \'{}\'".format(x['PlaceId'],x['IataCode'])
+                command = "Update airports Set sksplaceID = {} where sksplaceID IS NULL and code = \'{}\'".format(x['PlaceId'],x['IataCode'])
                 c.execute(command)
                 conn.commit()
 
