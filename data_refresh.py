@@ -11,16 +11,10 @@ config = ConfigParser.RawConfigParser(allow_no_value=True)
 config.read('keys.cfg')
 iatakey = config.get("API", "iatakey")
 geocodekey = config.get("API", "geocodekey")
+connstring = "Driver={ODBC Driver 13 for SQL Server};Server=tcp:"+config.get("DB","server")+";DATABASE="+config.get("DB","database")+";UID="+config.get("DB","uname")+";PWD="+ config.get("DB","pwd")
 
 conn = sqlite3.connect('pterodb')
-conn2 = pyodbc.connect('DRIVER='{ODBC Driver 13 for SQL Server}';PORT=1433;SERVER='+config.get("DB","server")+';PORT=1443;DATABASE='+config.get("DB","database")+';UID='+config.get("DB","uname")+';PWD='+ config.get("DB","pwd"))
-cursor = conn2.cursor()
-cursor.execute("select @@VERSION")
-row = cursor.fetchone()
-if row:
-    print row
-
-exit()
+conn2 = pyodbc.connect(connstring)
 
 data_resetflag = False
 
