@@ -13,33 +13,33 @@ iatakey = config.get("API", "iatakey")
 geocodekey = config.get("API", "geocodekey")
 connstring = "Driver={ODBC Driver 13 for SQL Server};Server=tcp:"+config.get("DB","server")+";DATABASE="+config.get("DB","database")+";UID="+config.get("DB","uname")+";PWD="+ config.get("DB","pwd")
 
-conn = sqlite3.connect('pterodb')
-conn2 = pyodbc.connect(connstring)
+#conn = sqlite3.connect('pterodb')
+conn = pyodbc.connect(connstring)
 
 data_resetflag = False
 
 def data_reset(reset=False):
     if reset == True:
         c = conn.cursor()
-        table = ['cities','airports']
+        table = ['cities','airports','airlines']
         for t in table:
             if table_exists(t) == True:
                 print 'Dropping Table {}'.format(t)
                 c.execute('Drop Table {}'.format(t))
-        c.execute('VACUUM;')
+        #c.execute('VACUUM;')
         conn.commit()
         print 'Data Reset Success'
 
 def table_exists(tablename):
     c = conn.cursor()
-    command = 'SELECT count(*) FROM sqlite_master WHERE type=\'table\' AND name=\'{}\';'.format(tablename)
+    #command = 'SELECT count(*) FROM sqlite_master WHERE type=\'table\' AND name=\'{}\';'.format(tablename)
+    command = "SELECT * FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = 'dbo' AND TABLE_NAME = '{}'".format(tablename)
     c.execute(command)
     row = c.fetchone()
     if row[0] != 0:
         return True
     else:
         return False
-
 
 def iata_refresh(table, apikey=iatakey, force=False):
     #IATA Airline DB
@@ -61,7 +61,8 @@ def iata_refresh(table, apikey=iatakey, force=False):
     if numrows[0] != 0:
         c.execute('Select max(created) from {}'.format(table))
         maxdate = c.fetchone()
-        maxdate = parse(maxdate[0])
+        maxdate = maxdate[0]
+        #maxdate = parse(maxdate[0])
         if force == True:
             comparedate = maxdate+relativedelta(weeks=-1) #or (months=+1)
         else: 
@@ -74,21 +75,21 @@ def iata_refresh(table, apikey=iatakey, force=False):
                 c = conn.cursor()
                 count = 0
                 for i in response['response']:
-                    c.execute("Select code from {} where code = \'{}\'".format(table,i['code']))
+                    c.execute("Select code from dbo.{} where code = \'{}\'".format(table,i['code'].replace("'","''").encode('ascii','ignore')))
                     if c.fetchone() == None: #Only insert new rows
                         if table == 'cities':
-                            c.execute('Insert Into {}(code, name, country_code) values(?,?,?)'.format(table),(i['code'],i['name'],i['country_code']))
+                            c.execute('Insert Into dbo.{}(code, name, country_code) values(?,?,?)'.format(table),(i['code'],i['name'],i['country_code']))
                         else: 
-                            c.execute('Insert Into {}(code, name) values(?,?)'.format(table),(i['code'],i['name']))
+                            c.execute('Insert Into dbo.{}(code, name) values(?,?)'.format(table),(i['code'],i['name']))
                             count = count+1
                 conn.commit()
-                update_api_history(apiID=apiID,numcalls=count)
+                update_api_history(apiID=apiID,numcalls=count+1)
                 print 'iata_{}_refresh - '.format(table)+ str(r.status_code) +' - Success - '+str(count)+' updated!'
             else: 
                 print str(r.status_code) + ' - ERROR!'
             if count == 0:
                 #we update one date so our check run logic holds for next time
-                c.execute('Update {} set created = DATETIME(\'now\') where {} = 1'.format(table,id_col))
+                c.execute('Update dbo.{} set created = CURRENT_TIMESTAMP where {} = 1'.format(table,id_col))
                 conn.commit()
         else: 
             print 'IATA {} -> its not time for an update yet'.format(table)
@@ -100,15 +101,15 @@ def iata_refresh(table, apikey=iatakey, force=False):
             count = 0
             for i in response['response']:
                 #need to remove dupes before insert:
-                c.execute("Select code from {} where code = \'{}\'".format(table,i['code']))
+                c.execute("Select code from dbo.{} where code = \'{}\'".format(table,i['code']))
                 if c.fetchone() == None:
                     if table == 'cities':
-                        c.execute('Insert Into {}(code, name, country_code) values(?,?,?)'.format(table),(i['code'],i['name'],i['country_code']))
+                        c.execute('Insert Into dbo.{}(code, name, country_code) values(?,?,?)'.format(table),(i['code'],i['name'],i['country_code']))
                     else: 
-                        c.execute('Insert Into {}(code, name) values(?,?)'.format(table),(i['code'],i['name']))
+                        c.execute('Insert Into dbo.{}(code, name) values(?,?)'.format(table),(i['code'],i['name']))
                         count = count+1
             conn.commit()   
-            update_api_history(apiID=apiID,numcalls=count)
+            update_api_history(apiID=apiID,numcalls=count+1)
             print 'iata_{}_refresh - '.format(table)+ str(r.status_code) +' - Success - '+str(count)+' updated!'
         else: 
             print str(r.status_code) + ' - ERROR!'
@@ -189,21 +190,24 @@ if __name__ == '__main__':
 
     c = conn.cursor()
     if table_exists('cities') == False:
-        command = 'Create Table IF NOT EXISTS cities(cityID INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT UNIQUE, code varchar(3), name varchar(100), country_code varchar(2), state varchar(100), lat Decimal(9,6), long Decimal(9,6), created DATETIME DEFAULT (DATETIME(\'now\')))'
+        #command = 'Create Table IF NOT EXISTS cities(cityID INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT UNIQUE, code varchar(3), name varchar(100), country_code varchar(2), state varchar(100), lat Decimal(9,6), long Decimal(9,6), created DATETIME DEFAULT (DATETIME(\'now\')))'
+        command = "CREATE TABLE dbo.cities ( cityID INTEGER NOT NULL PRIMARY KEY IDENTITY(1,1), code nvarchar(3) COLLATE SQL_Latin1_General_Cp1_CS_AS, name nvarchar(100), country_code nvarchar(2), state nvarchar(100), lat Decimal(9,6), long Decimal(9,6), created DATETIME DEFAULT CURRENT_TIMESTAMP)"
         c.execute(command)
         command = 'CREATE UNIQUE INDEX IDX_cities ON cities (code ASC)'
         c.execute(command)
         conn.commit()
         print 'Table cities Created!'
 
-        command = 'Create Table IF NOT EXISTS airports(airportID INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT UNIQUE, code varchar(3), name varchar(100), lat Decimal(9,6), long Decimal(9,6), created DATETIME DEFAULT (DATETIME(\'now\')))'
+        #command = 'Create Table IF NOT EXISTS airports(airportID INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT UNIQUE, code varchar(3), name varchar(100), lat Decimal(9,6), long Decimal(9,6), created DATETIME DEFAULT (DATETIME(\'now\')))'
+        command = "CREATE TABLE dbo.airports (airportID INTEGER NOT NULL PRIMARY KEY IDENTITY(1,1), code nvarchar(3) COLLATE SQL_Latin1_General_Cp1_CS_AS, name nvarchar(100), lat Decimal(9,6), long Decimal(9,6), created DATETIME DEFAULT CURRENT_TIMESTAMP, notairport INTEGER, [primary] INTEGER, hubtype varchar(50), sksplaceID INTEGER)"
         c.execute(command)
         command = 'CREATE UNIQUE INDEX IDX_airports ON airports (code ASC)'
         c.execute(command)
         conn.commit()
         print 'Table ariports Created!'
 
-        command = 'Create Table IF NOT EXISTS airlines(airlineID INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT UNIQUE, code varchar(2), name varchar(100), created DATETIME DEFAULT (DATETIME(\'now\')), skscarrierID INTEGER NULL)'
+        #command = 'Create Table IF NOT EXISTS airlines(airlineID INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT UNIQUE, code varchar(2), name varchar(100), created DATETIME DEFAULT (DATETIME(\'now\')), skscarrierID INTEGER NULL)'
+        command = "CREATE TABLE dbo.airlines (airlineID INTEGER NOT NULL PRIMARY KEY IDENTITY(1,1), code nvarchar(2) COLLATE SQL_Latin1_General_Cp1_CS_AS, name nvarchar(100), created DATETIME DEFAULT CURRENT_TIMESTAMP, skscarrierID INTEGER)"
         c.execute(command)
         command = 'CREATE UNIQUE INDEX IDX_airlines ON airlines (code ASC)'
         c.execute(command)
