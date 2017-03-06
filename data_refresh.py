@@ -33,7 +33,7 @@ def data_reset(reset=False):
 def table_exists(tablename):
     c = conn.cursor()
     #command = 'SELECT count(*) FROM sqlite_master WHERE type=\'table\' AND name=\'{}\';'.format(tablename)
-    command = "SELECT * FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = 'dbo' AND TABLE_NAME = '{}'".format(tablename)
+    command = "SELECT count(*) FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = 'dbo' AND TABLE_NAME = '{}'".format(tablename)
     c.execute(command)
     row = c.fetchone()
     if row[0] != 0:

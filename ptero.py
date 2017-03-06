@@ -1,5 +1,5 @@
 
-import requests, sqlite3, json, ConfigParser, uuid, time
+import requests, sqlite3, json, ConfigParser, uuid, time, pyodbc
 import datetime, dateutil.parser
 
 #Keys
@@ -9,13 +9,16 @@ qpxkey = config.get("API", "qpxkey")
 skyscannerkey = config.get("API", "skyscannerkey")
 iatakey = config.get("API", "iatakey")
 geocodekey = config.get("API", "geocodekey")
+connstring = "Driver={ODBC Driver 13 for SQL Server};Server=tcp:"+config.get("DB","server")+";DATABASE="+config.get("DB","database")+";UID="+config.get("DB","uname")+";PWD="+ config.get("DB","pwd")
 
-conn = sqlite3.connect('pterodb')
+#conn = sqlite3.connect('pterodb')
+conn = pyodbc.connect(connstring)
 data_resetflag = False
 
 def table_exists(tablename):
     c = conn.cursor()
-    command = 'SELECT count(*) FROM sqlite_master WHERE type=\'table\' AND name=\'{}\';'.format(tablename)
+    #command = 'SELECT count(*) FROM sqlite_master WHERE type=\'table\' AND name=\'{}\';'.format(tablename)
+    command = "SELECT count(*) FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = 'dbo' AND TABLE_NAME = '{}'".format(tablename)
     c.execute(command)
     row = c.fetchone()
     if row[0] != 0:
@@ -33,7 +36,7 @@ def data_reset(reset=False):
             if table_exists(t) == True:
                 print 'Dropping Table {}'.format(t)
                 c.execute('Drop Table {}'.format(t))
-        c.execute('VACUUM;')
+        #c.execute('VACUUM;')
         conn.commit()
         print 'Data Reset Success'
 
@@ -41,30 +44,30 @@ def update_api_history(apiID,numcalls,reset=False):
     c = conn.cursor()   
     if reset == True:
         c.execute('Delete from apihistory;')
-        c.execute('VACUUM;')
+        #c.execute('VACUUM;')
         conn.commit()
         return False
 
-    command = 'Select count(*) from apihistory where apiID = {} and date = date(\'now\')'.format(apiID)
+    command = 'Select count(*) from apihistory where apiID = {} and date = cast(CURRENT_TIMESTAMP as date)'.format(apiID)
     c.execute(command)
     row = c.fetchone()
     if row[0] == 0:
-        command = 'Insert Into apihistory(apiID,date,numcalls) Values({},date(\'now\'),{})'.format(apiID,numcalls)
+        command = 'Insert Into apihistory(apiID,date,numcalls) Values({},cast(CURRENT_TIMESTAMP as date),{})'.format(apiID,numcalls)
         c.execute(command)
         conn.commit()
         return True
     else:
-        command = 'Select numcalls from apihistory where apiID = {} and date = date(\'now\')'.format(apiID)
+        command = 'Select numcalls from apihistory where apiID = {} and date = cast(CURRENT_TIMESTAMP as date)'.format(apiID)
         c.execute(command)
         row = c.fetchone()
-        command = 'Update apihistory Set numcalls = {} where apiID = {} and date = date(\'now\')'.format(row[0]+numcalls,apiID)
+        command = 'Update apihistory Set numcalls = {} where apiID = {} and date = cast(CURRENT_TIMESTAMP as date)'.format(row[0]+numcalls,apiID)
         c.execute(command)
         conn.commit()
         return True
 
 def api_limit_reached(apiID):
     c = conn.cursor()
-    c.execute('Select numcalls from apihistory where apiID={} and date = date(\'now\')'.format(apiID))
+    c.execute('Select numcalls from apihistory where apiID={} and date = cast(CURRENT_TIMESTAMP as date)'.format(apiID))
     numcalls = c.fetchone()
     c.execute('Select dailylimit from apilimit where apiID={}'.format(apiID))
     dailylimit = c.fetchone()
@@ -78,7 +81,7 @@ def update_qpx_response(useraccountID, rawresponse, requestID):
     #command = "Insert Into qpxresponse(rawresponse) values(\'{}\');".format(rawresponse)
     c.execute("Insert Into qpxresponse(useraccountID, rawresponse,requestID) values(?,?,?)",(useraccountID,rawresponse,requestID))
     conn.commit()
-    command = 'Select * from qpxresponse order by queryid desc LIMIT 1'
+    command = 'Select TOp 1 * from qpxresponse order by queryid desc'
     c.execute(command)
     row = c.fetchone()
     return row[0]
@@ -88,7 +91,7 @@ def create_user_account(emailaddress):
     try:
         newuuid=uuid.uuid4()
         c.execute('Insert Into useraccount(useraccountid, emailaddress) Values(\'{}\',\'{}\')'.format(str(newuuid),emailaddress))
-        c.execute('Select * from useraccount Order by created desc LIMIT 1')
+        c.execute('Select TOP 1 * from useraccount Order by created desc')
         row = c.fetchone()
         conn.commit()
         return row[0]
@@ -124,13 +127,13 @@ def create_user_route(useraccountid,o_or_d,cityID,airportID,seasons=[]):
         c = conn.cursor()   
         c.execute('Insert Into {}(useraccountid, {}, airportID, season1ID, season2ID, season3ID) Values(\'{}\',{},{},{s1},{s2},{s3})'.format(table,col,useraccountid,cityID,airportID,s1=season1,s2=season2,s3=season3))
         conn.commit()
-        c.execute('Select {} from {} where useraccountid = \'{}\' Order by created desc LIMIT 1'.format(col2,table, useraccountid))
+        c.execute('Select TOP 1 {} from {} where useraccountid = \'{}\' Order by created desc'.format(col2,table, useraccountid))
         row = c.fetchone()
         return row[0]
 
-    except sqlite3.Error as er:
-        print 'er:', er.message
-        return 'er:', er.message
+    except pyodbc.Error as ex:
+        print ex.args[1]
+        return ex.args[1]
 
 def nearby_airports(citycode,distance=150,primaryairports=1,apikey=iatakey):
     #IATA Nearby Lookup
@@ -313,10 +316,8 @@ def qpx_parse(response, verbose=False):
                             trip['currency'],trip['totalflightduration'],trip['connections'],trip['adultcount'],trip['seniorcount'],
                             trip['childcount'],trip['infantinseatcount'],trip['infantinlapcount']))
             conn.commit()
-        except sqlite3.Error as er:
-            print 'er:', er.message
-            pass
-            #return 'er:', er.message        
+        except pyodbc.Error as ex:
+                print ex.args[1]
 
         for si in segments:
             try:
@@ -326,8 +327,8 @@ def qpx_parse(response, verbose=False):
                            si['segmentcarrier'],si['segmentflightnumber'],si['cabin'],si['bookingcode'],si['bookingcodecount'],
                            si['marriedsegmentgroup'],si['connectionduration']))
                 conn.commit()
-            except sqlite3.Error as er:
-                print 'er:', er.message
+            except pyodbc.Error as ex:
+                print ex.args[1]
                 pass
 
         for l in legs:
@@ -340,8 +341,8 @@ def qpx_parse(response, verbose=False):
                            l['origin'],l['originterminal'],l['destination'],l['destinationterminal'],l['duration'],l['ontimeperformance'],
                            l['mileage'],l['meal'],l['secure'],l['changeplane']))
                 conn.commit()
-            except sqlite3.Error as er:
-                print 'er:', er.message
+            except pyodbc.Error as ex:
+                print ex.args[1]
                 pass
                 #return 'er:', er.message       
 
@@ -362,7 +363,7 @@ def qpx_parse(response, verbose=False):
                 for li in l:
                     print str(li) + ': ' + str(l[li])
 
-def qpx_search(useraccountID,jsonquery,apikey=qpxkey):
+def qpx_search(useraccountID,jsonquery,apikey=qpxkey,verbose=False):
     if api_limit_reached(apiID=1) == False:
         headers = {'content-type': 'application/json'}
         url = 'https://www.googleapis.com/qpxExpress/v1/trips/search?key={}'.format(apikey)
@@ -373,7 +374,7 @@ def qpx_search(useraccountID,jsonquery,apikey=qpxkey):
             response = r.json()
             requestID = response['trips']['requestId']
             update_qpx_response(useraccountID,r.text,requestID)
-            qpx_parse(response=response,verbose=False)
+            qpx_parse(response=response,verbose=verbose)
             return r.json()
         else: 
             print str(r.status_code) + ' - Failure!'
@@ -410,7 +411,7 @@ def update_sks_response(useraccountID,rawresponse):
         #command = "Insert Into qpxresponse(rawresponse) values(\'{}\');".format(rawresponse)
         c.execute("Insert Into sksresponse(useraccountID,rawresponse) values(?,?)",(useraccountID,rawresponse))
         conn.commit()
-        command = 'Select * from sksresponse order by queryid desc LIMIT 1'
+        command = 'Select TOp 1 * from sksresponse order by queryid desc'
         c.execute(command)
         row = c.fetchone()
         return row[0]
@@ -483,8 +484,8 @@ def sks_search(useraccountID, userip, origin, destination, month=None, apikey=sk
                 try:
                     c.execute(command)
                     conn.commit()
-                except:
-                    print 'error here'
+                except pyodbc.Error as ex:
+                    print ex.args[1]
                     conn.rollback()
                     conn.close
                     exit()
@@ -532,7 +533,8 @@ if __name__ == '__main__':
 
     if table_exists('qpxresponse') == False:
         #c.execute('Drop Table qpxresponse')
-        command = 'CREATE TABLE IF NOT EXISTS qpxresponse(queryid INTEGER PRIMARY KEY, rawresponse BLOB, created DATETIME DEFAULT (DATETIME(\'now\')), requestID TEXT)'
+        #command = 'CREATE TABLE IF NOT EXISTS qpxresponse(queryid INTEGER PRIMARY KEY, rawresponse Nvarchar(MAX), created DATETIME DEFAULT (DATETIME(\'now\')), requestID TEXT)'
+        command = "CREATE TABLE dbo.qpxresponse (queryid INTEGER PRIMARY KEY IDENTITY(1,1), rawresponse NVARCHAR(MAX), created DATETIME DEFAULT CURRENT_TIMESTAMP, requestID TEXT, useraccountID VARCHAR(36))"
         c.execute(command)
         conn.commit()
 
@@ -566,33 +568,38 @@ if __name__ == '__main__':
             create_user_route(useraccountid='9e6b6207-31a3-481e-b5e3-5754fdcd222a',o_or_d='d',cityID=cityid,airportID=a)
 
     if table_exists('qpxtrip') == False:
-        command = "CREATE TABLE IF NOT EXISTS qpxtrip('tripinstanceID` INTEGER PRIMARY KEY, `requestID` VARCHAR(12), `fareID` VARCHAR(500), `farebasiscode` VARCHAR(8), `tripoptionID` VARCHAR(25), `tripoption` INTEGER, `latestticketingtime` DATETIME, `origin` VARCHAR(3), `destination` VARCHAR(3), `price` DECIMAL(10,2), `currency` VARCHAR(3), `totalflightduration` INTEGER, 'connections' INTEGER, `adultcount` INTEGER, `seniorcount` INTEGER, `childcount` INTEGER, `infantinseatcount` INTEGER, `infantinlapcount` INTEGER, `created` INTEGER DEFAULT (DATETIME(\'now\')))"
+        #command = "CREATE TABLE IF NOT EXISTS qpxtrip('tripinstanceID` INTEGER PRIMARY KEY, `requestID` VARCHAR(12), `fareID` VARCHAR(500), `farebasiscode` VARCHAR(8), `tripoptionID` VARCHAR(25), `tripoption` INTEGER, `latestticketingtime` DATETIME, `origin` VARCHAR(3), `destination` VARCHAR(3), `price` DECIMAL(10,2), `currency` VARCHAR(3), `totalflightduration` INTEGER, 'connections' INTEGER, `adultcount` INTEGER, `seniorcount` INTEGER, `childcount` INTEGER, `infantinseatcount` INTEGER, `infantinlapcount` INTEGER, `created` INTEGER DEFAULT (DATETIME(\'now\')))"
+        command = "CREATE TABLE dbo.qpxtrip ( tripinstanceID INTEGER PRIMARY KEY IDENTITY(1,1), requestID VARCHAR(22) COLLATE SQL_Latin1_General_Cp1_CS_AS, fareID VARCHAR(500) COLLATE SQL_Latin1_General_Cp1_CS_AS, farebasiscode VARCHAR(8), tripoptionID VARCHAR(25) COLLATE SQL_Latin1_General_Cp1_CS_AS, tripoption INTEGER, latestticketingtime DATETIME, origin VARCHAR(3), destination VARCHAR(3), price DECIMAL(10,2), currency VARCHAR(3), totalflightduration INTEGER, connections INTEGER, adultcount INTEGER, seniorcount INTEGER, childcount INTEGER, infantinseatcount INTEGER, infantinlapcount INTEGER, created DATETIME DEFAULT CURRENT_TIMESTAMP)"
         c.execute(command)
-        command = 'CREATE UNIQUE INDEX {ix} on {tn}({cn} DESC, {cn2} ASC})'.format(ix='IDX_qpxtrip', tn='qpxtrip', cn='requestID', cn2='tripoptionID')
+        command = 'CREATE UNIQUE INDEX {ix} on {tn}({cn} DESC, {cn2} ASC)'.format(ix='IDX_qpxtrip', tn='qpxtrip', cn='requestID', cn2='tripoptionID')
         c.execute(command)
         conn.commit()   
 
     if table_exists('qpxsegment') == False:
-        command = "CREATE TABLE IF NOT EXISTS qpxsegment(`segmentinstanceID` INTEGER PRIMARY KEY, `requestID` VARCHAR(22), `tripoptionID` VARCHAR(25), `farebasiscode` VARCHAR(8), `segmentID` VARCHAR(16), `segmentcarrier` VARCHAR(2), `segmentflightnumber` VARCHAR(10), `cabin` VARCHAR(50), `bookingcode` VARCHAR(10), `bookingcodecount` INTEGER, `marriedsegmentcount` INTEGER, `connectionduration` INTEGER, `created` DATETIME DEFAULT DATETIME(\'now\'))"
+        #command = "CREATE TABLE IF NOT EXISTS qpxsegment(`segmentinstanceID` INTEGER PRIMARY KEY, `requestID` VARCHAR(22), `tripoptionID` VARCHAR(25), `farebasiscode` VARCHAR(8), `segmentID` VARCHAR(16), `segmentcarrier` VARCHAR(2), `segmentflightnumber` VARCHAR(10), `cabin` VARCHAR(50), `bookingcode` VARCHAR(10), `bookingcodecount` INTEGER, `marriedsegmentcount` INTEGER, `connectionduration` INTEGER, `created` DATETIME DEFAULT DATETIME(\'now\'))"
+        command = "CREATE TABLE dbo.qpxsegment (segmentinstanceID INTEGER PRIMARY KEY IDENTITY(1,1), requestID VARCHAR(22) COLLATE SQL_Latin1_General_Cp1_CS_AS, tripoptionID VARCHAR(25) COLLATE SQL_Latin1_General_Cp1_CS_AS, farebasiscode VARCHAR(8), segmentID VARCHAR(16) COLLATE SQL_Latin1_General_Cp1_CS_AS, segmentcarrier VARCHAR(2), segmentflightnumber VARCHAR(10), cabin VARCHAR(50), bookingcode VARCHAR(10), bookingcodecount INTEGER, marriedsegmentcount INTEGER, connectionduration INTEGER, created DATETIME DEFAULT CURRENT_TIMESTAMP)"
         c.execute(command)
         command = 'CREATE UNIQUE INDEX {ix} on {tn}({cn} DESC,{cn2} ASC,{cn3} ASC)'.format(ix='IDX_qpxsegment', tn='qpxsegment', cn='requestID', cn2='tripoptionID', cn3='segmentID')
         c.execute(command)
         conn.commit()   
 
     if table_exists('qpxleg') == False:
-        command = "CREATE TABLE IF NOT EXISTS qpxleg(`leginstanceID` INTEGER UNIQUE, `requestID` VARCHAR(22), `tripoptionID` VARCHAR(25), `farebasiscode` VARCHAR(8), `segmentID` VARCHAR(16), `legID` VARCHAR(16), `aircraft` VARCHAR(3), `arrivaltime` DATETIME, `arrivaltimeutcoffset` INTEGER, `departuretime` DATETIME, `departuretimeutcoffset` INTEGER, `origin` VARCHAR(3), `originterminal` VARCHAR(5), `destination` VARCHAR(3), `destinationterminal` VARCHAR(5), `duration` INTEGER, `ontimeperformance` INTEGER, `mileage` INTEGER, `meal` VARCHAR(100), `secure` INTEGER, `changeplane` INTEGER, `created` DATETIME DEFAULT DATETIME(\'now\')"
+        #command = "CREATE TABLE IF NOT EXISTS qpxleg(`leginstanceID` INTEGER UNIQUE, `requestID` VARCHAR(22), `tripoptionID` VARCHAR(25), `farebasiscode` VARCHAR(8), `segmentID` VARCHAR(16), `legID` VARCHAR(16), `aircraft` VARCHAR(3), `arrivaltime` DATETIME, `arrivaltimeutcoffset` INTEGER, `departuretime` DATETIME, `departuretimeutcoffset` INTEGER, `origin` VARCHAR(3), `originterminal` VARCHAR(5), `destination` VARCHAR(3), `destinationterminal` VARCHAR(5), `duration` INTEGER, `ontimeperformance` INTEGER, `mileage` INTEGER, `meal` VARCHAR(100), `secure` INTEGER, `changeplane` INTEGER, `created` DATETIME DEFAULT DATETIME(\'now\')"
+        command = "CREATE TABLE dbo.qpxleg (leginstanceID INTEGER PRIMARY KEY IDENTITY(1,1), requestID VARCHAR(22) COLLATE SQL_Latin1_General_Cp1_CS_AS, tripoptionID varchar(25) COLLATE SQL_Latin1_General_Cp1_CS_AS, farebasiscode VARCHAR(8), segmentID VARCHAR(16) COLLATE SQL_Latin1_General_Cp1_CS_AS, legID VARCHAR(16), aircraft VARCHAR(3), arrivaltime DATETIME, arrivaltimeutcoffset INTEGER, departuretime DATETIME, departuretimeutcoffset INTEGER, origin VARCHAR(3), originterminal VARCHAR(5), destination VARCHAR(3), destinationterminal VARCHAR(5), duration INTEGER, ontimeperformance INTEGER, mileage INTEGER, meal VARCHAR(100), secure INTEGER, changeplane INTEGER, created DATETIME DEFAULT CURRENT_TIMESTAMP)"
         c.execute(command)
         command = 'CREATE UNIQUE INDEX {ix} on {tn}({cn} DESC,{cn2} ASC,{cn3} ASC)'.format(ix='IDX_qpxleg', tn='qpxleg', cn='requestID', cn2='tripoptionID',cn3='legID')
         c.execute(command)
         conn.commit()   
 
     if table_exists('sksresponse') == False:
-        command = 'CREATE TABLE IF NOT EXISTS sksresponse(queryid INTEGER PRIMARY KEY, rawresponse BLOB, created DATETIME DEFAULT (DATETIME(\'now\')))'
+        #command = 'CREATE TABLE IF NOT EXISTS sksresponse(queryid INTEGER PRIMARY KEY, rawresponse Nvarchar(MAX), created DATETIME DEFAULT (DATETIME(\'now\')))'
+        command = "CREATE TABLE dbo.sksresponse ( queryid INTEGER PRIMARY KEY IDENTITY(1,1), rawresponse NVARCHAR(MAX), created DATETIME DEFAULT CURRENT_TIMESTAMP, useraccountID VARCHAR(36))"
         c.execute(command)
         conn.commit()
 
     if table_exists('sksquotes') == False:
-        command = "CREATE TABLE IF NOT EXISTS sksquotes(queryID INTEGER NOT NULL, quoteID INTEGER, quotedatetime datetime, minprice decimal(10,2), direct tinyint, out_carrierID INTEGER, out_originID INTEGER, out_destinationID INTEGER, out_departuredate datetime, in_carrierID INTEGER, in_originID INTEGER, in_destinationID INTEGER, in_departuredate datetime, created DATETIME DEFAULT(DATETIME(\'now\')))"
+        #command = "CREATE TABLE IF NOT EXISTS sksquotes(queryID INTEGER NOT NULL, quoteID INTEGER, quotedatetime datetime, minprice decimal(10,2), direct tinyint, out_carrierID INTEGER, out_originID INTEGER, out_destinationID INTEGER, out_departuredate datetime, in_carrierID INTEGER, in_originID INTEGER, in_destinationID INTEGER, in_departuredate datetime, created DATETIME DEFAULT(DATETIME(\'now\')))"
+        command = "CREATE TABLE sksquotes(queryID INTEGER, quoteID INTEGER, quotedatetime datetime, minprice decimal(10,2), direct tinyint, out_carrierID INTEGER, out_originID INTEGER, out_destinationID INTEGER, out_departuredate datetime, in_carrierID INTEGER, in_originID INTEGER, in_destinationID INTEGER, in_departuredate datetime, created DATETIME DEFAULT CURRENT_TIMESTAMP)"
         c.execute(command)
         command = "CREATE UNIQUE INDEX IDX_sksquotes ON sksquotes(queryID ,quoteID)"
         c.execute(command)
@@ -634,7 +641,7 @@ if __name__ == '__main__':
             print r
             try: #loop through specified months
                 for m in r[2]:
-                    print m, u['useraccountid']
+                    #print m, u['useraccountid']
                     if m!=None:
                         sks_search(useraccountID=u['useraccountid'], userip='100.34.202.47',origin=r[0],destination=r[1],month=m)
             except Exception as err: #no months specified
@@ -665,7 +672,7 @@ if __name__ == '__main__':
           {
             "origin": requestorigin,
             "destination": requestdestination,
-            "date": "2017-03-01",
+            "date": "2017-06-01",
             #"maxStops": integer,
             #"maxConnectionDuration": integer,
             "preferredCabin": "Coach", #COACH, PREMIUM_COACH, BUSINESS, and FIRST
@@ -695,7 +702,7 @@ if __name__ == '__main__':
     #parsedjson = json.loads(json.dumps(jsonbody))
 
     
-    #r = qpx_search(useraccountID='9e6b6207-31a3-481e-b5e3-5754fdcd222a',jsonquery=json.dumps(jsonbody))
+    #r = qpx_search(useraccountID='9e6b6207-31a3-481e-b5e3-5754fdcd222a',jsonquery=json.dumps(jsonbody),verbose=False)
     ## Next we must construct a request based on stored user input, instead of hardcoding it
 
 
